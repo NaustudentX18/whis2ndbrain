@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 142" role="img" aria-labelledby="title desc">
+  <title id="title">Whis2ndBrain</title>
+  <desc id="desc">Custom Whis2ndBrain wordmark with a luminous memory-loop symbol.</desc>
+  <defs>
+    <linearGradient id="loop" x1="17" y1="12" x2="112" y2="122" gradientUnits="userSpaceOnUse"><stop stop-color="#C1F4D7"/><stop offset=".55" stop-color="#78D5BF"/><stop offset="1" stop-color="#9B8CFF"/></linearGradient>
+    <radialGradient id="spark" cx="0" cy="0" r="1" gradientTransform="matrix(23 29 -23 18 64 49)" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF9D8"/><stop offset=".48" stop-color="#C8FFE4"/><stop offset="1" stop-color="#8ADCC7"/></radialGradient>
+  </defs>
+  <g transform="translate(8 7) scale(1.02)">
+    <path d="M96.5 29.5C83 16 58 16 40 28 22 40 16 62 25 80c8 18 27 29 46 26 9-1 16-5 22-11" fill="none" stroke="url(#loop)" stroke-width="8" stroke-linecap="round"/>
+    <path d="M93 91c4-4 8-9 10-15" fill="none" stroke="#9B8CFF" stroke-width="8" stroke-linecap="round"/>
+    <path d="M64 38c4 11 9 17 20 21-11 4-16 10-20 21-4-11-9-17-20-21 11-4 16-10 20-21Z" fill="url(#spark)"/>
+    <circle cx="99" cy="37" r="3" fill="#BFAFFF"/>
+  </g>
+  <!-- The name is drawn as original path letterforms: no machine font or remote font file is needed. -->
+  <g fill="none" stroke="#EEF5F0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(138 30)"><path d="M1 1 10 43 21 14 32 43 42 1"/></g>
+    <g transform="translate(187 30)"><path d="M1 1v43M31 1v43M1 22h30"/></g>
+    <g transform="translate(225 30)"><path d="M3 1h25M15 1v43M3 44h25"/></g>
+    <g transform="translate(259 30)"><path d="M34 6C28 0 7-2 3 8-2 20 32 18 33 31c1 12-21 17-31 7"/></g>
+    <g transform="translate(312 30)" stroke="#A9EED0"><path d="M3 10C7-1 29-2 34 8c7 13-8 23-31 36h32"/></g>
+    <g transform="translate(350 30)" stroke="#A9EED0"><path d="M2 43V1l30 43V1"/></g>
+    <g transform="translate(389 30)" stroke="#A9EED0"><path d="M3 1h14c15 0 22 8 22 21S32 44 17 44H3Z"/></g>
+    <g transform="translate(449 30)"><path d="M3 1h16c9 0 14 4 14 11s-5 11-14 11H3m16 0c10 0 15 4 15 10s-5 11-15 11H3V1"/></g>
+    <g transform="translate(493 30)"><path d="M3 44V1h17c11 0 16 5 16 13S31 27 20 27H3m17 0 18 17"/></g>
+    <g transform="translate(539 30)"><path d="M2 44 17 1l16 43M8 29h19"/></g>
+    <g transform="translate(581 30)"><path d="M3 1h25M15 1v43M3 44h25"/></g>
+    <g transform="translate(615 30)"><path d="M2 43V1l30 43V1"/></g>
+  </g>
+  <path d="M140 88h512" stroke="#263238" stroke-width="1"/>
+  <text x="140" y="111" fill="#A0B4AA" font-family="'Avenir Next', Avenir, 'Segoe UI', sans-serif" font-size="11" font-weight="600" letter-spacing="3.1">CATCH THE THOUGHT · KEEP THE SIGNAL</text>
+</svg>

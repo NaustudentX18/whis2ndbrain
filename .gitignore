@@ -1,0 +1,31 @@
+# Secrets and private voice material
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.wav
+*.mp3
+*.m4a
+*.sqlite
+*.sqlite-*
+*.db
+recordings/
+data/
+models/
+model-cache/
+# Generated build/cache
+.omx/
+node_modules/
+.next/
+out/
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+dist/
+build/
+*.log
