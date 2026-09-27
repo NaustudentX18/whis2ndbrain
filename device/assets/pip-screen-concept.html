@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#121c1c" />
+  <meta name="description" content="A static visual concept for a possible Whis2ndBrain device screen. Not a live interface." />
+  <title>Pip device screen — static concept</title>
+  <style>
+    :root { color-scheme: dark; --ink:#f1f5ec; --muted:#a8b7ac; --mint:#bdf4d7; --line:rgba(222,241,227,.16); }
+    * { box-sizing:border-box; }
+    body { min-height:100vh; margin:0; padding:32px 18px; display:grid; place-items:center; background:radial-gradient(ellipse at 50% 15%,#263c36,transparent 55%),#101817; color:var(--ink); font:15px/1.5 system-ui,sans-serif; }
+    main { width:min(100%,360px); text-align:center; }
+    h1 { margin:0 0 8px; font:600 23px/1.2 Georgia,serif; letter-spacing:-.4px; }
+    .intro { margin:0 auto 26px; max-width:31ch; color:var(--muted); font-size:13px; }
+    .device { width:240px; height:280px; margin:auto; padding:12px; border:1px solid #53635b; border-radius:28px; background:linear-gradient(145deg,#33443d,#1b2926 64%); box-shadow:0 28px 70px #0008, inset 0 1px #ffffff20; }
+    .screen { height:100%; padding:12px 11px; border-radius:18px; overflow:hidden; background:radial-gradient(ellipse at 50% 36%,#294438 0,#192922 45%,#121d1a 100%); display:flex; flex-direction:column; align-items:center; }
+    .status { width:100%; display:flex; justify-content:space-between; align-items:center; color:#dce9de; font:600 10px/1.2 system-ui,sans-serif; letter-spacing:.15px; }
+    .status-group { display:flex; align-items:center; gap:5px; }
+    .dot { width:6px; height:6px; border-radius:50%; background:var(--mint); box-shadow:0 0 8px #bdf4d788; }
+    .battery { display:inline-flex; align-items:center; gap:4px; }
+    .battery-icon { width:16px; height:8px; border:1px solid #c9d7ca; border-radius:2px; position:relative; }
+    .battery-icon::before { content:""; position:absolute; inset:1px 3px 1px 1px; border-radius:1px; background:var(--mint); }
+    .battery-icon::after { content:""; position:absolute; width:2px; height:4px; right:-3px; top:1px; background:#c9d7ca; border-radius:0 1px 1px 0; }
+    .art { width:116px; height:135px; object-fit:contain; margin:3px 0 -1px; filter:drop-shadow(0 8px 12px #0006); }
+    .name { margin:0; color:var(--mint); font:italic 21px/1 Georgia,serif; }
+    .message { margin:7px 0 0; font-size:12px; font-weight:650; }
+    .hint { margin:4px 0 0; color:#afc1b3; font-size:9px; }
+    .idle { display:flex; align-items:center; gap:6px; margin-top:auto; padding:6px 9px; border:1px solid #bdf4d72a; border-radius:999px; color:#ddf6e7; background:#bdf4d70b; font-size:9px; font-weight:700; letter-spacing:.7px; text-transform:uppercase; }
+    .idle .dot { width:5px; height:5px; box-shadow:none; }
+    .notice { margin:23px 0 0; padding:13px 14px; border:1px solid var(--line); border-radius:12px; color:#dbe6dc; background:#ffffff08; text-align:left; font-size:12px; }
+    .notice strong { color:var(--mint); }
+    .back { display:inline-block; margin-top:17px; color:#c6d4c8; font-size:12px; text-underline-offset:3px; }
+    @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Pip on-device screen</h1>
+    <p class="intro">A friendly 240 × 280 screen direction for a future companion device.</p>
+    <div class="device" role="img" aria-label="Static concept of a small device screen. Pip appears above the message Ready when you are, with idle, battery 82 percent, and Wi-Fi status labels. These are illustrative, not live readings.">
+      <div class="screen" aria-hidden="true">
+        <div class="status"><span class="status-group"><span class="dot"></span>Wi-Fi</span><span class="battery"><span class="battery-icon"></span>82%</span></div>
+        <img class="art" src="../../brand/pip-hero.png" alt="" />
+        <p class="name">Pip</p>
+        <p class="message">Ready when you are</p>
+        <p class="hint">Press and hold to capture</p>
+        <div class="idle"><span class="dot"></span>Idle · not recording</div>
+      </div>
+    </div>
+    <p class="notice"><strong>Static concept only.</strong> Nothing here is a working device interface. Status, battery, Wi-Fi, and the suggested control are illustrative; no recording or live feature is simulated.</p>
+    <a class="back" href="../../site/index.html">← Back to the project page</a>
+  </main>
+</body>
+</html>

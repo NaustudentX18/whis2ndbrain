@@ -1,103 +1,83 @@
+# Whis2ndBrain
+
 <div align="center">
-  <img src="brand/wordmark.svg" alt="Whis2ndBrain — Catch the thought. Keep the signal." width="560" />
-  <br />
-  <img src="brand/pip-mascot.svg" alt="Pip, a tiny glowing thoughtkeeper companion" width="190" />
-  <h3>Your thoughts deserve somewhere safe to land.</h3>
-  <p>A pocket-sized, local-first voice notebook in the making.<br />Press. Speak. Let the thought go. Find it when you need it.</p>
-  <p><strong>🌱 EARLY BUILD · Research + project scaffolding · No working product yet</strong></p>
-  <p><a href="site/index.html">Explore the launch page</a> · <a href="docs/ROADMAP.md">Follow the roadmap</a> · <a href="DESIGN.md">Read the design brief</a></p>
+  <img src="brand/wordmark.svg" width="520" alt="Whis2ndBrain — Catch the thought. Keep the signal." />
+  <br /><br />
+  <img src="brand/pip-hero.png" width="270" alt="Pip, a smiling cream-and-mint thoughtkeeper with lilac wings, holding a glowing spark" />
+  <h2>Catch the thought. Keep the signal.</h2>
+  <p><strong>A little pocket companion for ideas that arrive when your hands are busy.</strong></p>
+  <p>Press to capture. Return to a clear, reviewable note. Keep the original in your care.</p>
+  <p><a href="site/index.html"><strong>Explore the landing page</strong></a> · <a href="docs/PRODUCT.md">The product</a> · <a href="docs/ROADMAP.md">The roadmap</a></p>
+  <p><sub>EARLY SOFTWARE PROTOTYPE · PHYSICAL RECORDER NOT YET COMMISSIONED</sub></p>
 </div>
 
 ---
 
-## The idea
+## A quieter way to remember
 
-Whis2ndBrain is an independent, owner-controlled pocket recorder and companion PWA for catching thoughts away from a keyboard. The north star is simple: capture first, organise later—with the original recording kept safe, machine suggestions kept humble, and the human always in charge.
+Whis2ndBrain is an **owner-controlled, local-first voice notebook in development**. The intended experience pairs a deliberate, push-to-talk pocket recorder with a private host and a mobile-friendly review space. Capture comes first; transcription and suggestions come later. Nothing a model proposes silently becomes your truth or takes an external action.
 
-The intended prototype pairs a **Raspberry Pi Zero 2 W**, **Whisplay** display/audio HAT and **PiSugar 3** power board with a private host for durable receipt, local transcription and optional typed triage. A mobile-friendly web companion is planned for search, listening, review and carefully scoped Markdown export to an Obsidian inbox.
+The planned hardware is a Raspberry Pi Zero 2 W with a Whisplay display/audio HAT and PiSugar 3 power board. **That physical device has not been built or tested.** Today this repository contains a working *software* prototype for portions of the journey, plus design concepts for the device and its companion.
 
-> **Truth before hype:** the hardware is not commissioned and no firmware, app, API, model integration or test has been implemented. This repository currently contains the project structure, research-informed design direction and build plan—not a usable recorder. Every product capability below is a target until verified.
+<table><tr>
+  <td width="33%" valign="top"><strong>01 · Catch it</strong><br />A deliberate capture should survive disconnection and restart before anything is called “saved”.</td>
+  <td width="33%" valign="top"><strong>02 · Make sense of it</strong><br />An owner-controlled host can retain a receipt and offer a machine transcript and bounded suggestions.</td>
+  <td width="33%" valign="top"><strong>03 · Make it yours</strong><br />Listen, search, correct and explicitly export a note—without overwriting your edits.</td>
+</tr></table>
 
-## The feeling
+> **Honest status:** local host code can accept and deduplicate WAV uploads, queue processing, expose review routes, and produce conflict-safe Markdown. A software device spool and Python-served browser shell are being tested locally and may not yet be on GitHub. None of this proves physical capture, real-phone usability, or an end-to-end commissioned device.
 
-**Quietly capable. Tactile. Kind. Private by design.** A little companion named **Pip**—a luminous memory-moth—will make the future interface feel warm without pretending to be an autonomous assistant. Pip can celebrate a saved capture, keep watch over a queue, or sit quietly in the corner. The actual mascot screen states, behaviours and animations still need implementation and accessibility review.
+## Meet Pip ✦
 
-| The promise we are designing toward | How we intend to earn it |
+**Pip** is a small, friendly thoughtkeeper: a soft mint-and-cream memory moth with lilac wings and a spark to hold onto. The new [Pip illustration](brand/pip-hero.png) is the face of this project; a [240 × 280 screen concept](device/assets/pip-screen-concept.html) explores how the same character might greet you on the future recorder.
+
+Pip is **not** a wake word, an always-listening microphone, a chatbot, or an autonomous agent. On a real device, readable recording, retention, queue, connection and battery states must take priority over character animation. A talking or animated screen has not been implemented. See the [design guide](DESIGN.md) and [brand assets](brand/README.md).
+
+## Built for trust, not magic
+
+| Principle | What it means here |
 | --- | --- |
-| **Capture without a connection** | A durable on-device queue; no cloud required to press record. |
-| **Know what happened** | Clear states for recording, retained, uploaded, processing and reviewed. |
-| **Keep the person in the loop** | Transcripts and categories are suggestions, never silent truth or automatic actions. |
-| **Keep data in your hands** | Owner-controlled processing host; private-network-first plan; explicit, conflict-safe export. |
+| **Offline first** | The target device keeps a durable local capture queue. A network outage must not prevent recording. |
+| **Receipts, not guesses** | “Received” requires a matching durable host receipt; a reachable server alone is not proof of sync. |
+| **Machine help stays labelled** | Transcript and category/urgency suggestions remain reviewable, editable and free to say “unknown”. |
+| **Your data, your decision** | Processing is planned for an owner-controlled host; export is explicit, allowlisted and conflict-aware. |
+| **Retention is explicit** | The host prototype has a 168-hour audio hold; “original kept safe” does not mean indefinite storage. |
 
-## A thought’s intended journey
+### The intended journey
 
-```text
-HOLD TO CAPTURE
-      ↓  original audio is finalised and retained on the device
-PRIVATE SYNC
-      ↓  matching durable receipt; safe to retry after interruption
-LOCAL PROCESSING
-      ↓  transcript + optional typed suggestions, each clearly machine-made
-HUMAN REVIEW
-      ↓  edit, keep, retry, trash or leave uncertain for later
-OBSIDIAN INBOX
-         explicit opt-in Markdown export; never overwrite an owner edit
-```
+    deliberate capture → durable device queue → matching host receipt
+                                                ↓
+                                  local processing + labelled suggestions
+                                                ↓
+                                    human review → opt-in Markdown export
 
-This is the design target, **not a live data flow**. See the [product guide](docs/PRODUCT.md) for intended scope and the [privacy guide](docs/PRIVACY.md) for the non-negotiable boundaries.
+The arrows describe the **design goal**, not a proven hardware-to-vault flow. The [product guide](docs/PRODUCT.md) explains the boundaries; the [privacy guide](docs/PRIVACY.md) explains the safeguards.
 
-## What makes this different
+## What exists today
 
-- **Offline capture comes before AI.** A model or Wi-Fi outage must never make the physical capture path disappear.
-- **Durable means durable.** “Saved” should only appear after a recording is safely finalised; “synced” should mean a matching, durable server receipt—not a health-check response.
-- **AI can be unsure.** Preserve the source audio, separate machine transcript from edits, abstain when uncertain, and make manual triage useful on its own.
-- **No surprise actions.** A suggested task is not a created task. A transcript is data—not a command to run, send, or move something.
-- **Human-scale design.** One-owner, one-device and private-network-first before any multi-user or cloud ambitions.
-
-## Project map
-
-```text
-.
-├── brand/              Original wordmark, icon, palette and Pip mascot artwork
-├── site/               Standalone, dependency-free pre-launch / loading page
-├── docs/               Product, privacy, contributor and milestone guides
-├── contracts/          Future versioned interfaces shared by device/server/web
-├── device/              Future offline recorder runtime (not implemented)
-├── server/              Future durable API and processing workers (not implemented)
-├── web/                 Future PWA companion (not implemented)
-├── tests/               Future synthetic, integration, browser and hardware tests
-├── enclosure/           Future measured mechanical design (not implemented)
-├── scripts/              Future safe, reviewed helpers
-└── deploy/               Future private-host deployment (not implemented)
-```
-
-`site/` is a static project introduction and visual direction only. It is not the PWA, does not collect data, and does not connect to a recorder or backend.
-
-## Follow along
-
-The [roadmap](docs/ROADMAP.md) breaks the work into evidence-gated milestones with checkboxes, acceptance criteria and source packet IDs. Current planning is **pre-build**: hardware, host, browser and privacy decisions still need owner review. Completion boxes are not a promise or a substitute for test evidence; no milestone should be checked until its criteria are demonstrated.
-
-Start here:
-
-1. [Product guide](docs/PRODUCT.md) — the job, intended flow, MVP and explicit non-goals.
-2. [Privacy guide](docs/PRIVACY.md) — data boundaries, safety rules and what “local-first” does and does not mean.
-3. [Design brief](DESIGN.md) — brand, mascot, visual system, interaction states and accessibility targets.
-4. [Roadmap](docs/ROADMAP.md) — phases, gates, dependencies and verification expectations.
-5. [Contributing](CONTRIBUTING.md) — the safe route from scaffold to implementation.
-
-The detailed requirements, research citations and canonical task board remain in the owner's private Obsidian project notes. Only public-safe summaries are reproduced here; do not add private vault exports, voice samples, recordings, secrets, model weights or personal identifiers to this repository.
-
-## Status
-
-| Area | Current state |
+| Surface | Evidence and limit |
 | --- | --- |
-| Product & technical research | Prepared; physical hardware and target host remain unverified |
-| Repository | New scaffold and public-facing project materials |
-| Device, server, PWA | Not implemented |
-| AI / transcription | Not integrated or evaluated on this project |
-| Hardware / enclosure | Not inspected, measured or commissioned |
-| Release / certification | None; no performance or battery-life claims |
+| Host | Python receipt/storage, idempotent ingest, job queue, review API, local transcription path and conflict-safe export. No production deployment claim. |
+| Device software | Durable spool/uploader prototype; **no microphone, button, display, power or reboot-on-Pi proof**. |
+| Browser | Python-served mobile-first PWA shell in server/pwa.py; local HTTP and desktop Chromium mobile-width checks only. The web/ directory is still a scaffold; no real-phone proof. |
+| AI | faster-whisper CPU transcription path and simple lexical category/urgency suggestions. A public English sample is not a personal-note quality evaluation. |
+| Hardware & enclosure | Uncommissioned and unmeasured. No battery-life, fit, release or certification claim. |
 
-<div align="center">
-  <sub>Made for the thought you almost forgot. Built carefully, one verified step at a time.</sub>
-</div>
+The public [roadmap](docs/ROADMAP.md) remains **0 of 8 evidence-gated milestones accepted**. Code presence is not gate acceptance; the owner's private task board is the detailed source of truth.
+
+## Explore the repository
+
+| Where | What you will find |
+| --- | --- |
+| [Landing page](site/index.html) | Dependency-free project introduction; not the review app. |
+| [Brand](brand/README.md) · [Design](DESIGN.md) | Original identity, Pip artwork and design/accessibility direction. |
+| [Device](device/) · [Contracts](contracts/) | Software spool and in-progress shared data contracts; no physical runtime. |
+| [Server](server/) | Host receipt, processing, review, PWA shell and export code. |
+| [Tests](tests/) · [Check script](scripts/check.sh) | Synthetic/unit/integration/browser checks; not hardware or real-device proof. |
+| [Docs](docs/) · [Contributing](CONTRIBUTING.md) | Product, privacy, roadmap and safe contribution guidance. |
+
+For a quick local **syntax and unit** check, run **bash scripts/check.sh** from the repository root with its existing Python virtual environment installed. It does not prove model, browser, integration or hardware readiness. Do not point experimental export at a live vault or add real recordings, transcripts, credentials or model weights to Git.
+
+---
+
+<div align="center"><p><strong>For the thought you almost forgot.</strong></p><sub>Made carefully, one honest state and one verified step at a time.</sub></div>

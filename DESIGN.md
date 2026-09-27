@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-- **Status:** Draft — pre-implementation direction
+- **Status:** Draft — early software prototype direction; physical device uncommissioned
 - **Date:** 2026-09-26
 - **Product surfaces:** static project / pre-launch page (`site/`), future Raspberry Pi recorder display, future mobile-first PWA.
 - **Evidence reviewed:** the project README and scaffold; canonical mission, PWA experience, architecture/data contracts, security/privacy, research synthesis, master plan and task board in the owner's Obsidian project notes. The assets and static page in this repo are original concept work, not screenshots or evidence of an implemented product.
@@ -16,7 +16,7 @@
 - Trust signals: show the current build stage; distinguish unknown/stale/queued/received/processed/reviewed; make original audio and machine suggestions distinct; use explicit consent and owner-confirmed actions.
 - Original mark: an open memory loop with a small thought-spark, representing a thought retained without implying omniscience.
 - Wordmark: the lowercase `whis` + mint `2nd` + lowercase `brain` treatment in `brand/wordmark.svg` is the project's original vector logotype. It is a bespoke rendered wordmark, not a licensed external font or a claim of a custom installable typeface. Keep the SVG as the source; do not substitute text with an unrelated font treatment.
-- Mascot: **Pip**, a friendly memory moth with mint/lilac wings and a small glow at its center. Pip is a visual companion, not a live assistant, wake word, listener, chatbot, or actor. The original concept artwork is `brand/pip-mascot.svg`.
+- Mascot: **Pip**, a friendly memory moth with a cream-and-mint body, lilac wings and a held thought-spark. Pip is a visual companion, not a live assistant, wake word, listener, chatbot, or actor. The current hero concept is `brand/pip-hero.png`; the earlier editable vector exploration remains at `brand/pip-mascot.svg`. Neither is device-runtime artwork yet.
 - Avoid: surveillance/sci-fi tropes, opaque “AI knows best” language, cold enterprise dashboards, fake hardware renders, borrowed commercial-product branding, alarmist privacy copy, and claims of certification, perfect accuracy, battery life or latency.
 
 ## Product goals
@@ -57,7 +57,7 @@ Primary navigation: **Notes / Device / Settings**. Notes opens a searchable, pag
 
 ### Future recorder display
 
-Proposed 240 × 280 px screen: connection/battery with stale/unknown state; central idle clock or recording elapsed state; bottom queue/saved/error message. The physical button remains authoritative even if display, browser, model or network fails.
+Proposed 240 × 280 px screen: connection/battery with stale/unknown state; central idle clock or recording elapsed state; bottom queue/saved/error message. `device/assets/pip-screen-concept.html` is a static layout proposal using the current Pip art, not firmware. The physical button remains authoritative even if display, browser, model or network fails.
 
 ## Design principles
 

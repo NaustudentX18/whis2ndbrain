@@ -1,5 +1,5 @@
-# `device/assets`
+# Device asset concepts
 
-**Purpose:** Device/mechanical owner — original or explicitly licensed fonts, icons and chimes. Keep attribution/licence records; do not copy commercial device assets or store personal recordings here.
+This directory contains design references, not device runtime assets. In particular, [`pip-screen-concept.html`](pip-screen-concept.html) is a static browser mockup of a possible 240 × 280 device screen. Its ready/idle, battery, and connection labels are illustrative only: they are not connected to hardware, telemetry, recording, or firmware.
 
-This is an empty first-run scaffold. No implementation is present or implied by this folder. Read the adjacent `AGENTS.md` and `private canonical Obsidian project notes/overview.md` before adding files.
+Pip's original mascot artwork lives in [`../../brand/pip-hero.png`](../../brand/pip-hero.png); this preview reuses it. No fonts, sounds, commercial assets, personal recordings, or live device assets are included here. Any later runtime implementation must define and verify real status sources separately.
