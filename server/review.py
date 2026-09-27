@@ -24,6 +24,8 @@ from server.pass1 import (
     _parse_stamp,
 )
 from server.pwa import get_manifest_json, get_pwa_html, get_service_worker_js
+from server.settings import SettingsStore
+from server.telemetry import SSEBroker, TelemetryStore
 
 COOKIE = "whis_session"
 MAX_PATCH_BYTES = 256 * 1024
@@ -31,12 +33,24 @@ MAX_MULTIPART_OVERHEAD = 64 * 1024
 
 
 class Review:
-    def __init__(self, store: Store, token: str, runner=None):
+    def __init__(
+        self,
+        store: Store,
+        token: str,
+        runner=None,
+        settings_store: SettingsStore | None = None,
+        telemetry_store: TelemetryStore | None = None,
+        sse_broker: SSEBroker | None = None,
+    ):
         if not token:
             raise ValueError("owner token is required")
         self.store = store
         self.token = token
         self.runner = runner
+        self.settings_store = settings_store or SettingsStore(store.root)
+        self.telemetry_store = telemetry_store or TelemetryStore()
+        self.sse_broker = sse_broker or SSEBroker()
+
 
     def handle(self, method: str, path: str, body: bytes, cookie: str, headers=None):
         raw = path
@@ -115,6 +129,22 @@ class Review:
 
         if method == "POST" and path == "/upload":
             return self._upload(body, headers.get("content-type", ""))
+
+        if path == "/api/v1/settings":
+            if method == "GET":
+                return self._api_settings_get()
+            if method == "PATCH":
+                return self._api_settings_patch(body, headers)
+            return 405, _json(), b'{"error":"method not allowed"}'
+
+        if method == "GET" and path == "/api/v1/device/telemetry":
+            return self._api_telemetry_get()
+        if method == "POST" and path == "/api/v1/device/heartbeat":
+            return self._api_device_heartbeat(body, headers)
+        if method == "GET" and path == "/api/v1/events":
+            return self._api_sse(headers)
+
+
         if method == "GET" and path == "/":
             return 200, _html(), _page(self._list())
         capture_id, kind = _route(path)
@@ -413,6 +443,85 @@ class Review:
         body = build_markdown_body(note, receipt)
         return 200, {"content-type": "text/markdown; charset=utf-8"}, body.encode("utf-8")
 
+    # ── Settings ──────────────────────────────────────────────────────────
+
+    def _api_settings_get(self):
+        settings = self.settings_store.load()
+        return 200, _json(), json.dumps(settings.to_dict()).encode()
+
+    def _api_settings_patch(self, body: bytes, headers: dict[str, str]):
+        try:
+            data = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return 400, _json(), b'{"error":"invalid json"}'
+        if not isinstance(data, dict) or not data:
+            return 400, _json(), b'{"error":"empty or non-object body"}'
+        unknown = set(data) - self.settings_store.load().PATCHABLE
+        if unknown:
+            return 400, _json(), json.dumps({"error": f"unknown fields: {sorted(unknown)}"}).encode()
+        try:
+            settings = self.settings_store.patch(data)
+        except ValueError as exc:
+            return 400, _json(), json.dumps({"error": str(exc)}).encode()
+        return 200, _json(), json.dumps(settings.to_dict()).encode()
+
+    # ── Device telemetry & heartbeat ──────────────────────────────────────
+
+    def _api_telemetry_get(self):
+        snapshot = self.telemetry_store.get()
+        return 200, _json(), json.dumps(snapshot.to_dict()).encode()
+
+    def _api_device_heartbeat(self, body: bytes, headers: dict[str, str]):
+        """Accept a heartbeat POST from the Pi spool uploader.
+
+        Body is optional JSON: {device_id?, queue_depth?, battery_pct?,
+        wifi_rssi_dbm?, firmware_version?, spool_errors?}
+        """
+        data: dict = {}
+        if body:
+            try:
+                parsed = json.loads(body.decode("utf-8"))
+                if isinstance(parsed, dict):
+                    data = parsed
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return 400, _json(), b'{"error":"invalid json"}'
+        snapshot = self.telemetry_store.update(data)
+        # Publish SSE event to connected browser clients
+        self.sse_broker.publish("device_heartbeat", json.dumps(snapshot.to_dict()))
+        return 200, _json(), json.dumps(snapshot.to_dict()).encode()
+
+    # ── Server-sent events ────────────────────────────────────────────────
+
+    def _api_sse(self, headers: dict[str, str]):
+        """Return a streaming SSE response.
+
+        The HTTP handler must recognise the special sentinel and stream the
+        queue rather than buffering. This method returns a generator-based
+        response that the ThreadingHTTPServer handler writes incrementally.
+
+        Returns (200, sse_headers, generator).
+        """
+        q = self.sse_broker.subscribe()
+
+        def _generate():
+            # Send an initial ping so the client knows we're live
+            yield b"event: ping\ndata: {}\n\n"
+            while True:
+                try:
+                    msg = q.get(timeout=30)
+                    if msg is None:
+                        break
+                    yield msg.encode()
+                except Exception:  # queue.Empty on timeout → send keepalive
+                    yield b": keepalive\n\n"
+
+        sse_headers = {
+            "content-type": "text/event-stream; charset=utf-8",
+            "cache-control": "no-cache",
+            "x-accel-buffering": "no",
+        }
+        return 200, sse_headers, _generate()
+
 
 def _route(path: str) -> tuple[str | None, str]:
     if not path.startswith("/n/"):
@@ -480,11 +589,19 @@ def _file_field(body: bytes, content_type: str) -> bytes:
     return wav
 
 
-def create_handler(store: Store, token: str, runner=None):
+def create_handler(store: Store, token: str, runner=None, settings_store=None, telemetry_store=None, sse_broker=None):
     """Build the production HTTP handler without starting host maintenance or a listener."""
     from http.server import BaseHTTPRequestHandler
 
-    review = Review(store, token, runner=runner)
+    review = Review(
+        store,
+        token,
+        runner=runner,
+        settings_store=settings_store,
+        telemetry_store=telemetry_store,
+        sse_broker=sse_broker,
+    )
+
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             self._dispatch("GET", b"")
@@ -526,16 +643,31 @@ def create_handler(store: Store, token: str, runner=None):
             self.wfile.write(body)
 
         def _dispatch(self, method: str, body: bytes) -> None:
+            import types
             headers = {k: v for k, v in self.headers.items()}
             status, response_headers, payload = review.handle(
                 method, self.path, body, self.headers.get("Cookie", ""), headers
             )
+            is_stream = isinstance(payload, types.GeneratorType)
             self.send_response(status)
             for key, value in response_headers.items():
                 self.send_header(key, value)
-            self.send_header("Content-Length", str(len(payload)))
+            if not is_stream:
+                self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
-            self.wfile.write(payload)
+            if is_stream:
+                try:
+                    for chunk in payload:
+                        self.wfile.write(chunk)
+                        self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                finally:
+                    if hasattr(payload, "close"):
+                        payload.close()
+            else:
+                self.wfile.write(payload)
+
 
         def log_message(self, fmt: str, *args) -> None:
             return
@@ -561,7 +693,19 @@ def serve(store: Store, token: str, host: str = "127.0.0.1", port: int = 8765) -
                 holder["runner"] = loaded
         return loaded(path)
 
-    Handler = create_handler(store, token)
+    from server.settings import SettingsStore
+    from server.telemetry import SSEBroker, TelemetryStore
+
+    settings_store = SettingsStore(store.root)
+    telemetry_store = TelemetryStore()
+    sse_broker = SSEBroker()
+
+    Handler = create_handler(
+        store, token,
+        settings_store=settings_store,
+        telemetry_store=telemetry_store,
+        sse_broker=sse_broker,
+    )
 
     prepare_host(store, datetime.now(timezone.utc))
 
