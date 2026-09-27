@@ -1,6 +1,6 @@
 # Whis2ndBrain roadmap
 
-> **Status: 0 of 8 delivery milestones accepted.** This is the public, milestone-level progress view. It does not claim any product implementation. The detailed 60-packet task board in the owner's canonical Obsidian project notes remains authoritative; an unchecked box here is not an instruction to execute work without an assigned packet.
+> **Status: 0 of 8 delivery milestones accepted.** This is the public, milestone-level progress view. Local software prototypes exist, but no commissioned product or physical/phone gate is claimed. The detailed 60-packet task board in the owner's canonical Obsidian project notes remains authoritative; an unchecked box here is not an instruction to execute work without an assigned packet.
 
 **Guiding order:** evidence and safety → contracts → durable capture → durable host processing → human review → operations/mechanics → adversarial proof → bounded pilot and release. Do not polish the dashboard ahead of proving capture and recovery. Do not convert estimates into delivery promises.
 
@@ -17,14 +17,27 @@
 
 | Phase | Theme | Packet range | Exit gate | State |
 | --- | --- | --- | --- | --- |
-| 0 | Research and build baseline | WB-001–005 | G0 documentation / G1 approved baseline | In preparation; hardware uncommissioned |
-| 1 | Contracts and test scaffolding | WB-006–011 | Shared interfaces + green mock/CI baseline | Not started |
-| 2 | Hardware bring-up and durable capture | WB-012–019 | Reboot-safe offline capture / network replay | Not started |
-| 3 | Server, ASR and typed suggestions | WB-020–032 | G2 model feasibility / G3 physical thin slice | Not started |
-| 4 | PWA and human review | WB-033–040 | Accessible, honest, real-phone experience | Not started |
+| 0 | Research and build baseline | WB-001–005 | G0 documentation / G1 approved baseline | Desk research exists; gate open, hardware uncommissioned |
+| 1 | Contracts and test scaffolding | WB-006–011 | Shared interfaces + green mock/CI baseline | Provisional schemas/fixtures/unit checks; gate open |
+| 2 | Hardware bring-up and durable capture | WB-012–019 | Reboot-safe offline capture / network replay | Software spool only; physical gate not started |
+| 3 | Server, ASR and typed suggestions | WB-020–032 | G2 model feasibility / G3 physical thin slice | Local host/API/queue/export slices; gate open |
+| 4 | PWA and human review | WB-033–040 | Accessible, honest, real-phone experience | Local browser shell only; phone gate open |
 | 5 | Operations and measured enclosure | WB-041–047 | Restore/update safety + measured fit | Not started |
 | 6 | Adversarial verification and pilot | WB-048–053 | G4 safety/reliability / G5 bounded pilot | Not started |
 | 7 | Release and maintenance | WB-054–060 | G6 recoverable prototype + handoff | Not started |
+
+---
+
+## Audited partial progress — 2026-09-27
+
+These checkmarks record **implemented/tested slices**, not WB packet acceptance or a released product. The canonical task board and all eight milestone gates remain unchecked.
+
+- [x] Original Pip illustration, public landing page, and static 240 × 280 screen concept exist. The screen is not connected to a device.
+- [x] Local host receipt/deduplication, bounded WAV ingest, 168-hour audio hold, owner-correction protection, provisional SQLite job queue, review routes, and conflict-safe **disposable** Markdown export have synthetic/unit coverage.
+- [x] Software-only device spool, restart reconciliation, and matching-receipt retry have synthetic/unit and loopback integration coverage; no physical recorder or persistent-mount proof exists.
+- [x] Python-served review shell passed one desktop-Chromium mobile-width smoke; no real-phone HTTPS, accessibility qualification, or production deployment is proven.
+- [x] Fresh local validation: `bash scripts/check.sh` (95 unit tests), `ruff check server contracts device tests`, five disposable integration tests, one Chromium smoke, and `git diff --check` passed in the audited working tree.
+- [ ] Freeze the shared contract, security/pairing/TLS, worker isolation, backup/restore, real-model quality, Pi capture, phone, live-vault, and full end-to-end gates before any milestone is accepted.
 
 ---
 

@@ -1,7 +1,7 @@
 # Whis2ndBrain repository instructions
 
 ## Project state and plan authority
-This is a BRAND-NEW project. This repository contains a scaffold, public-facing design/docs and an original static concept page; hardware is uncommissioned. Do not claim any endpoint, feature, driver, test or model is implemented. Detailed requirements/research/risks/checklist source of truth: the owner's private canonical Obsidian project notes (entry: `overview.md`; board: `notes/swarm-task-board.md`). Read its `notes/agent-execution-contract.md` before taking a packet. Private vault notes are not part of this repository.
+This is an early prototype, not a commissioned product. The repository contains a public scaffold and bounded host, software-spool, API and browser-shell prototype code. Verify the current tree and test evidence before claiming any feature, driver, model, browser or hardware gate complete. Hardware remains uncommissioned. Detailed requirements/research/risks/checklist source of truth: the owner's private canonical Obsidian project notes (entry: `overview.md`; board: `notes/swarm-task-board.md`). Read its `notes/agent-execution-contract.md` before taking a packet. Private vault notes are not part of this repository.
 
 ## Execution boundary
 No device flashing, OS/service configuration, GPIO/power operations, production deployment, live-vault export, public network exposure, external webhook, real speech fixture, package install or model download is authorised by this scaffold alone. A later explicit assigned WB packet must name exact target and gates. Never request credentials in notes. Never run unreviewed install scripts as root. Preserve pending recordings and existing data; no destructive disk assumptions.
