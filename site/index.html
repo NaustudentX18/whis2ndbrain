@@ -126,6 +126,12 @@
     .footer-links { display:flex; gap:18px; }
     .footer-links a { text-decoration:none; }
     @keyframes float { 0%,100% { transform:translateY(0) rotate(-1deg); } 50% { transform:translateY(-10px) rotate(1deg); } }
+    .log-list { margin-top:30px; border:1px solid var(--line); border-radius:var(--radius); background:var(--night-soft); overflow:hidden; }
+    .log-item { display:flex; gap:18px; padding:19px 23px; border-top:1px solid var(--line); }
+    .log-item:first-child { border-top:none; }
+    .log-date { flex:0 0 88px; color:var(--mint); font:11px var(--mono); letter-spacing:.4px; padding-top:2px; }
+    .log-item h3 { margin:0; font-size:13.5px; }
+    .log-item p { margin:4px 0 0; color:var(--muted); font-size:11.5px; }
     @media(max-width:800px) {
       .hero { min-height:auto; grid-template-columns:1fr; padding:78px 0 56px; gap:0; }
       .hero-copy { max-width:590px; }
@@ -209,8 +215,8 @@
     <div class="ribbon">
       <div class="shell ribbon-inner">
         <span class="ribbon-label">Right now</span>
-        <span class="ribbon-status"><span class="pulse" aria-hidden="true"></span>Research &amp; foundation phase</span>
-        <span class="ribbon-note">Local host prototype exists; hardware and real-phone gates remain open.</span>
+        <span class="ribbon-status"><span class="pulse" aria-hidden="true"></span>Software build phase &middot; CI green</span>
+        <span class="ribbon-note">Host prototype + companion app progress below; hardware and real-phone gates remain open.</span>
       </div>
     </div>
 
@@ -273,6 +279,19 @@
         </ul>
         <div class="callout">A prototype is not a certified product. Do not record other people without the appropriate consent and authority for your context.</div>
       </aside>
+    </section>
+
+    <section id="progress" class="shell">
+      <span class="section-kicker">Progress log</span>
+      <h2>What has actually been built.</h2>
+      <p class="section-lead">Tested software on disposable data only. None of this yet proves physical capture, real-phone usability or a commissioned device&mdash;the roadmap gates stay open until each one is measured.</p>
+      <div class="log-list">
+        <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Continuous integration is live and green</h3><p>GitHub Actions now runs the Python unit suite + lint and the Flutter analyze / test / debug-APK build on every push. Both pipelines pass.</p></div></article>
+        <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Companion app scaffold landed</h3><p>A Flutter client for the review experience: setup, device, notes and settings screens with an authenticated API client. An Android gradle scaffold makes a debug APK build reproducible in CI. It is a prototype&mdash;no device pairing or real-phone qualification yet.</p></div></article>
+        <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Encryption, settings and telemetry slices</h3><p>At-rest encryption helpers, a persisted settings API and device telemetry with server-sent events&mdash;each carrying its own unit tests. Design documentation added in the security guide.</p></div></article>
+        <article class="log-item"><span class="log-date">2026&middot;09&middot;27</span><div><h3>Bounded host prototype published</h3><p>Receipt-guarded WAV ingest with deduplication, bounded validation, a provisional transcription job queue, an owner-correction review shell and conflict-safe Markdown export&mdash;covered by unit, integration and a desktop-Chromium smoke test.</p></div></article>
+        <article class="log-item"><span class="log-date">Next</span><div><h3>Up next: the on-wire capture manifest</h3><p>A provisional manifest carried with each upload, validated against the received audio bytes, so a durable receipt proves more than &ldquo;some file arrived&rdquo;. Hardware bring-up waits on its own safety gates.</p></div></article>
+      </div>
     </section>
 
     <section id="roadmap" class="shell roadmap">

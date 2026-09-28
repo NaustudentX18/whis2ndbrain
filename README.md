@@ -72,7 +72,9 @@ The public [roadmap](docs/ROADMAP.md) remains **0 of 8 evidence-gated milestones
 | [Landing page](site/index.html) | Dependency-free project introduction; not the review app. |
 | [Brand](brand/README.md) · [Design](DESIGN.md) | Original identity, Pip artwork and design/accessibility direction. |
 | [Device](device/) · [Contracts](contracts/) | Software spool and in-progress shared data contracts; no physical runtime. |
-| [Server](server/) | Host receipt, processing, review, PWA shell and export code. |
+| [Server](server/) | Host receipt, processing, review, PWA shell, settings/telemetry and at-rest encryption code. |
+| [App](app/) | Flutter companion-client prototype (setup, device, notes, settings screens); no device pairing or real-phone qualification. |
+| [CI](.github/workflows/ci.yml) | GitHub Actions: Python unit+lint and Flutter analyze/test/debug-APK; green on the latest push. |
 | [Tests](tests/) · [Check script](scripts/check.sh) | Synthetic/unit/integration/browser checks; not hardware or real-device proof. |
 | [Docs](docs/) · [Contributing](CONTRIBUTING.md) | Product, privacy, roadmap and safe contribution guidance. |
 
