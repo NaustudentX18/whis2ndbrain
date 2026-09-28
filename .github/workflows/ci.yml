@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: Unit tests & lint (Python 3.12)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -39,10 +39,7 @@ jobs:
 
   flutter:
     name: Flutter build check
-    runs-on: ubuntu-22.04
-    # Only run when app/ directory exists (Flutter scaffold added)
-    if: ${{ hashFiles('app/pubspec.yaml') != '' }}
-
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
