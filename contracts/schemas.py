@@ -99,7 +99,8 @@ class CaptureManifest:
     duration_ms: int
     audio: AudioMetadata
     schema_version: int = 1
-    clock_status: str = "trusted"
+    # Absent clock facts default to *unknown*, never trusted.
+    clock_status: str = "unknown"
 
     def validate(self) -> None:
         if type(self.schema_version) is not int or self.schema_version != 1:
@@ -112,7 +113,16 @@ class CaptureManifest:
             raise SchemaValidationError("duration_ms must be non-negative")
         if self.clock_status not in ("trusted", "estimated", "unknown"):
             raise SchemaValidationError("invalid clock_status")
-        _check_timestamp(self.captured_at, "captured_at")
+        # Provisional clock rule (docs/CONTRACT-NOTES.md): an unknown device
+        # clock must be empty captured_at + clock_status "unknown" — never
+        # silently defaulted to a trusted wall-clock time.
+        if self.clock_status == "unknown":
+            if self.captured_at != "":
+                raise SchemaValidationError(
+                    "captured_at must be empty when clock_status is unknown"
+                )
+        else:
+            _check_timestamp(self.captured_at, "captured_at")
         self.audio.validate()
 
     def to_dict(self) -> dict[str, Any]:
@@ -127,9 +137,9 @@ class CaptureManifest:
                 device_id=data["device_id"],
                 capture_id=data["capture_id"],
                 sequence=data["sequence"],
-                captured_at=data["captured_at"],
+                captured_at=data.get("captured_at", ""),
                 duration_ms=data["duration_ms"],
-                clock_status=data.get("clock_status", "trusted"),
+                clock_status=data.get("clock_status", "unknown"),
                 audio=audio,
             )
         except (KeyError, TypeError, ValueError) as exc:

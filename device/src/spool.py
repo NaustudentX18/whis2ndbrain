@@ -10,6 +10,7 @@ import sqlite3
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 import wave
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -17,7 +18,23 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from contracts.schemas import ReceiptResponse, SchemaValidationError
+from contracts.schemas import (
+    AudioMetadata,
+    CaptureManifest,
+    ReceiptResponse,
+    SchemaValidationError,
+)
+
+
+def _wav_facts(data: bytes) -> tuple[int, int, int, int]:
+    """Return (channels, sample_rate_hz, sample_width_bits, duration_ms)."""
+    with wave.open(io.BytesIO(data), "rb") as audio:
+        channels = audio.getnchannels()
+        rate = audio.getframerate()
+        width = audio.getsampwidth()
+        frames = audio.getnframes()
+    duration_ms = round((frames / rate) * 1000) if rate else 0
+    return channels, rate, width, duration_ms
 
 # Keep device limits aligned with server/pass1.py. Never read an unbounded file
 # into memory, even if it was modified outside the recorder.
@@ -51,6 +68,8 @@ class SpoolRecord:
     last_attempt_at: str | None = None
     receipt_id: str | None = None
     error_message: str | None = None
+    sequence: int | None = None
+    manifest_json: str | None = None
 
 
 def _is_wav(data: bytes) -> bool:
@@ -109,8 +128,9 @@ def _read_bounded(path: Path) -> bytes:
 class DeviceSpool:
     """Manages persistent capture storage, atomic finalization, and crash recovery."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, device_id: str = "unset-device"):
         self.root = Path(root)
+        self.device_id = device_id
         self.recordings_dir = self.root / "recordings"
         self.partial_dir = self.recordings_dir / "partial"
         self.pending_dir = self.recordings_dir / "pending"
@@ -140,10 +160,16 @@ class DeviceSpool:
                     created_at TEXT NOT NULL,
                     last_attempt_at TEXT,
                     receipt_id TEXT,
-                    error_message TEXT
+                    error_message TEXT,
+                    sequence INTEGER
                 )
                 """
             )
+            have = {row["name"] for row in conn.execute("PRAGMA table_info(spool_queue)")}
+            if "sequence" not in have:
+                conn.execute("ALTER TABLE spool_queue ADD COLUMN sequence INTEGER")
+            if "manifest_json" not in have:
+                conn.execute("ALTER TABLE spool_queue ADD COLUMN manifest_json TEXT")
 
     @contextmanager
     def _connect(self) -> Generator[sqlite3.Connection, None, None]:
@@ -218,16 +244,41 @@ class DeviceSpool:
         _fsync_dir(self.pending_dir)
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # Provisional v1 manifest (docs/CONTRACT-NOTES.md). The software spool
+        # has no RTC guarantee, so clock facts are recorded as unknown rather
+        # than silently stamped from an untrusted wall clock.
+        channels, rate, width, duration_ms = _wav_facts(data)
         with self._connect() as conn:
+            sequence = conn.execute(
+                "SELECT COALESCE(MAX(sequence), -1) + 1 AS next FROM spool_queue"
+            ).fetchone()["next"]
+            manifest = CaptureManifest(
+                device_id=self.device_id,
+                capture_id=capture_id,
+                sequence=sequence,
+                captured_at="",
+                duration_ms=duration_ms,
+                audio=AudioMetadata(
+                    sha256=digest,
+                    bytes=byte_count,
+                    format="wav",
+                    sample_rate_hz=rate,
+                    channels=channels,
+                    sample_width_bits=width * 8,
+                ),
+                clock_status="unknown",
+            )
+            manifest.validate()
+            manifest_json = json.dumps(manifest.to_dict(), sort_keys=True)
             conn.execute(
                 """
                 INSERT INTO spool_queue
-                    (capture_id, sha256, byte_count, status, attempts, created_at)
-                VALUES (?, ?, ?, 'pending', 0, ?)
+                    (capture_id, sha256, byte_count, status, attempts, created_at,
+                     sequence, manifest_json)
+                VALUES (?, ?, ?, 'pending', 0, ?, ?, ?)
                 """,
-                (capture_id, digest, byte_count, now),
+                (capture_id, digest, byte_count, now, sequence, manifest_json),
             )
-
         return SpoolRecord(
             capture_id=capture_id,
             sha256=digest,
@@ -235,6 +286,8 @@ class DeviceSpool:
             status="pending",
             attempts=0,
             created_at=now,
+            sequence=sequence,
+            manifest_json=manifest_json,
         )
 
     def reconcile_on_boot(self) -> dict[str, int]:
@@ -382,7 +435,7 @@ class DeviceSpool:
             rows = conn.execute(
                 """
                 SELECT capture_id, sha256, byte_count, status, attempts, created_at,
-                       last_attempt_at, receipt_id, error_message
+                       last_attempt_at, receipt_id, error_message, sequence, manifest_json
                 FROM spool_queue
                 WHERE status = 'pending'
                 ORDER BY created_at ASC
@@ -395,7 +448,7 @@ class DeviceSpool:
             row = conn.execute(
                 """
                 SELECT capture_id, sha256, byte_count, status, attempts, created_at,
-                       last_attempt_at, receipt_id, error_message
+                       last_attempt_at, receipt_id, error_message, sequence, manifest_json
                 FROM spool_queue
                 WHERE capture_id = ?
                 """,
@@ -490,6 +543,23 @@ def _open_request(request: urllib.request.Request, *, timeout: float):
     return urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout)
 
 
+def _multipart_field(name: str, value: str, boundary: str) -> bytes:
+    return (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{name}"\r\n'
+        f"Content-Type: text/plain; charset=utf-8\r\n\r\n"
+        f"{value}\r\n"
+    ).encode()
+
+
+def _multipart_file(name: str, filename: str, data: bytes, boundary: str) -> bytes:
+    return (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
+        f"Content-Type: audio/wav\r\n\r\n"
+    ).encode() + data + b"\r\n"
+
+
 class SpoolUploader:
     """Outbound sync client streaming spooled captures to the host API."""
 
@@ -523,13 +593,49 @@ class SpoolUploader:
             self.spool.mark_failed(record.capture_id, "file exceeds upload limit")
             return {"status": "error", "error": "file exceeds upload limit"}
 
+        # Provisional v1 envelope: send the stored manifest with the audio.
+        # The manifest is only sent when it still matches the local bytes; a
+        # mismatch means the pending file changed under us and must not be
+        # described by the old manifest.
+        metadata_json = None
+        if record.manifest_json:
+            try:
+                manifest = CaptureManifest.from_dict(json.loads(record.manifest_json))
+            except (ValueError, SchemaValidationError):
+                self.spool.mark_failed(record.capture_id, "stored manifest unreadable")
+                return {"status": "error", "error": "stored manifest unreadable"}
+            if (
+                manifest.audio.sha256 != record.sha256
+                or manifest.audio.bytes != record.byte_count
+                or manifest.capture_id != record.capture_id
+            ):
+                self.spool.mark_failed(record.capture_id, "manifest does not match audio")
+                return {"status": "error", "error": "manifest does not match audio"}
+            metadata_json = json.dumps(manifest.to_dict(), sort_keys=True)
+
+        if metadata_json is not None:
+            boundary = f"----whisbooth{uuid.uuid4().hex}"
+            parts = [
+                _multipart_field("capture_id", record.capture_id, boundary),
+                _multipart_field("metadata", metadata_json, boundary),
+                _multipart_file("file", f"{record.capture_id}.wav", data, boundary),
+            ]
+            body = b"".join(parts) + f"--{boundary}--\r\n".encode()
+            content_type = f"multipart/form-data; boundary={boundary}"
+            extra_headers: dict[str, str] = {}
+        else:
+            # Legacy compatibility-only route: raw WAV, no manifest.
+            body = data
+            content_type = "audio/wav"
+            extra_headers = {"X-Capture-ID": record.capture_id}
+
         req = urllib.request.Request(
             f"{self.server_url}/api/v1/captures",
-            data=data,
+            data=body,
             headers={
                 "Authorization": f"Bearer {self.token}",
-                "Content-Type": "audio/wav",
-                "X-Capture-ID": record.capture_id,
+                "Content-Type": content_type,
+                **extra_headers,
             },
         )
 
