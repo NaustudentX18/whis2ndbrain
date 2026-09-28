@@ -533,7 +533,7 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _category,
+                    initialValue: _category,
                     decoration: const InputDecoration(labelText: 'Category'),
                     items: _categories
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -546,7 +546,7 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _urgency,
+                    initialValue: _urgency,
                     decoration: const InputDecoration(labelText: 'Urgency'),
                     items: _urgencies
                         .map((u) => DropdownMenuItem(value: u, child: Text(u)))
