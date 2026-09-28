@@ -9,8 +9,6 @@ from pathlib import Path
 
 from server.pass1 import Store
 from server.review import Review
-from server.settings import Settings, SettingsStore
-from server.telemetry import SSEBroker, TelemetryStore
 
 
 def wav_bytes() -> bytes:
@@ -70,7 +68,7 @@ class SettingsEndpointTests(unittest.TestCase):
         self._patch("/api/v1/settings", {"retention_hours": 72})
         # Create a fresh Review from same root — should read persisted value
         review2 = make_review(self.root)
-        status, _, body = review2.handle("GET", "/api/v1/settings", b"", TOKEN_COOKIE, BEARER)
+        _, _, body = review2.handle("GET", "/api/v1/settings", b"", TOKEN_COOKIE, BEARER)
         self.assertEqual(json.loads(body)["retention_hours"], 72)
 
     def test_patch_unknown_field_returns_400(self):
@@ -79,11 +77,11 @@ class SettingsEndpointTests(unittest.TestCase):
         self.assertIn("unknown", json.loads(body)["error"])
 
     def test_patch_invalid_retention_returns_400(self):
-        status, _, body = self._patch("/api/v1/settings", {"retention_hours": 0})
+        status, _, _body = self._patch("/api/v1/settings", {"retention_hours": 0})
         self.assertEqual(status, 400)
 
     def test_patch_relative_vault_path_returns_400(self):
-        status, _, body = self._patch("/api/v1/settings", {"vault_export_path": "relative/path"})
+        status, _, _body = self._patch("/api/v1/settings", {"vault_export_path": "relative/path"})
         self.assertEqual(status, 400)
 
     def test_patch_absolute_vault_path_accepted(self):
@@ -141,7 +139,7 @@ class TelemetryEndpointTests(unittest.TestCase):
 
     def test_heartbeat_updates_telemetry(self):
         self._post("/api/v1/device/heartbeat", {"device_id": "pi-001", "queue_depth": 2})
-        status, _, body = self._get("/api/v1/device/telemetry")
+        _, _, body = self._get("/api/v1/device/telemetry")
         data = json.loads(body)
         self.assertEqual(data["device_id"], "pi-001")
         self.assertEqual(data["queue_depth"], 2)
@@ -190,7 +188,7 @@ class SSEEndpointTests(unittest.TestCase):
     def test_sse_returns_200_and_event_stream_content_type(self):
         # Close the broker immediately so the generator terminates
         self.review.sse_broker.close_all()
-        status, headers, payload = self.review.handle(
+        status, headers, _payload = self.review.handle(
             "GET", "/api/v1/events", b"", TOKEN_COOKIE, BEARER
         )
         self.assertEqual(status, 200)
@@ -203,7 +201,7 @@ class SSEEndpointTests(unittest.TestCase):
     def test_sse_generator_sends_initial_ping(self):
         import types
         self.review.sse_broker.close_all()
-        status, _, payload = self.review.handle(
+        _, _, payload = self.review.handle(
             "GET", "/api/v1/events", b"", TOKEN_COOKIE, BEARER
         )
         self.assertIsInstance(payload, types.GeneratorType)

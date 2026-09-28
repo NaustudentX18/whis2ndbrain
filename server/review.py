@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import queue
 import sqlite3
 import threading
 import uuid
@@ -512,7 +513,7 @@ class Review:
                     if msg is None:
                         break
                     yield msg.encode()
-                except Exception:  # queue.Empty on timeout → send keepalive
+                except queue.Empty:  # timeout → send keepalive
                     yield b": keepalive\n\n"
 
         sse_headers = {

@@ -1,10 +1,15 @@
 """Unit tests for server.telemetry — TelemetryStore and SSEBroker."""
 
-import queue
 import time
 import unittest
 
-from server.telemetry import SSEBroker, TelemetrySnapshot, TelemetryStore, _float_or_none, _int_or_none
+from server.telemetry import (
+    SSEBroker,
+    TelemetrySnapshot,
+    TelemetryStore,
+    _float_or_none,
+    _int_or_none,
+)
 
 
 class TelemetrySnapshotTests(unittest.TestCase):

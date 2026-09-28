@@ -79,7 +79,7 @@ class Settings:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Settings":
+    def from_dict(cls, data: dict) -> Settings:
         known = {f.name for f in cls.__dataclass_fields__.values()
                  if not f.name.startswith("_")}
         extra = {k: v for k, v in data.items() if k not in known}

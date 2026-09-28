@@ -40,3 +40,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Machine-specific / generated
+generated_plugin_registrant.yaml
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
