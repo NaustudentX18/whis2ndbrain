@@ -25,7 +25,7 @@ The planned hardware is a Raspberry Pi Zero 2 W with a Whisplay display/audio HA
   <td width="33%" valign="top"><strong>03 · Make it yours</strong><br />Listen, search, correct and explicitly export a note—without overwriting your edits.</td>
 </tr></table>
 
-> **Honest status:** this repository contains host code that can accept and deduplicate WAV uploads, queue processing, expose review routes, and produce conflict-safe Markdown. Its software device spool and Python-served browser shell have synthetic/local test coverage. None of this proves physical capture, real-phone usability, or an end-to-end commissioned device.
+> **Honest status:** this repository contains host code that can accept and deduplicate WAV uploads, validate a *provisional* on-wire capture manifest against the uploaded audio bytes, queue processing, expose review routes, and produce conflict-safe Markdown. The manifest envelope is software-tested with synthetic data only; it is not a frozen cross-team contract. Its software device spool and Python-served browser shell have synthetic/local test coverage. None of this proves physical capture, real-phone usability, or an end-to-end commissioned device.
 
 ## Meet Pip ✦
 

@@ -114,3 +114,48 @@ class ContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class CaptureManifestClockRuleTests(unittest.TestCase):
+    """Provisional clock rule: unknown clock = empty captured_at, never trusted."""
+
+    @staticmethod
+    def _manifest(**overrides):
+        from contracts.schemas import AudioMetadata, CaptureManifest
+
+        base = {
+            "device_id": "dev-1",
+            "capture_id": "cap-1",
+            "sequence": 0,
+            "captured_at": "",
+            "duration_ms": 10,
+            "audio": AudioMetadata(
+                sha256="a" * 64, bytes=336, sample_rate_hz=16000, channels=1,
+                sample_width_bits=16,
+            ),
+        }
+        base.update(overrides)
+        return CaptureManifest(**base)
+
+    def test_unknown_clock_with_empty_timestamp_is_valid(self):
+        m = self._manifest(clock_status="unknown", captured_at="")
+        m.validate()  # must not raise
+
+    def test_unknown_clock_with_timestamp_is_rejected(self):
+        m = self._manifest(clock_status="unknown", captured_at="2026-09-28T00:00:00Z")
+        with self.assertRaises(SchemaValidationError):
+            m.validate()
+
+    def test_missing_clock_fields_default_to_unknown(self):
+        data = self._manifest().to_dict()
+        data.pop("clock_status")
+        data.pop("captured_at")
+        m = CaptureManifest.from_dict(data)
+        self.assertEqual(m.clock_status, "unknown")
+        self.assertEqual(m.captured_at, "")
+
+    def test_estimated_clock_requires_timestamp(self):
+        m = self._manifest(clock_status="estimated", captured_at="")
+        with self.assertRaises(SchemaValidationError):
+            m.validate()
+        m2 = self._manifest(clock_status="estimated", captured_at="2026-09-28T00:00:00Z")
+        m2.validate()  # must not raise

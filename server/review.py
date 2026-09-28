@@ -13,7 +13,7 @@ from email.policy import default
 from pathlib import Path
 from urllib.parse import parse_qs, unquote
 
-from contracts.schemas import Category, Urgency
+from contracts.schemas import CaptureManifest, Category, SchemaValidationError, Urgency
 from server.pass1 import (
     HOLD,
     MAX_WAV_BYTES,
@@ -274,21 +274,52 @@ class Review:
         elif _is_wav(body):
             wav = body
 
-        capture_id = headers.get("x-capture-id") or fields.get("capture_id")
-        if not capture_id:
-            metadata_str = fields.get("metadata")
-            if metadata_str:
-                try:
-                    meta = json.loads(metadata_str)
-                    capture_id = meta.get("capture_id")
-                except (json.JSONDecodeError, TypeError, AttributeError):
-                    capture_id = None
-        if not capture_id:
+        header_capture_id = headers.get("x-capture-id") or fields.get("capture_id")
+        metadata_str = fields.get("metadata")
+
+        # Provisional v1 manifest envelope (docs/CONTRACT-NOTES.md). A present
+        # metadata part must be a fully valid manifest; it is validated against
+        # the uploaded bytes before any receipt is issued.
+        manifest = None
+        if metadata_str is not None:
+            if len(metadata_str.encode("utf-8")) > 16 * 1024:
+                return 400, _json(), b'{"error":"rejected","message":"metadata exceeds 16 KiB"}'
+            try:
+                meta = json.loads(metadata_str)
+                if not isinstance(meta, dict) or meta.get("schema_version") != 1:
+                    raise SchemaValidationError("unsupported schema version")
+                manifest = CaptureManifest.from_dict(meta)
+            except (json.JSONDecodeError, TypeError, AttributeError, SchemaValidationError) as exc:
+                return 400, _json(), json.dumps(
+                    {"error": "rejected", "message": f"invalid capture manifest: {exc}"}
+                ).encode()
+            capture_id = manifest.capture_id
+            if header_capture_id and header_capture_id != manifest.capture_id:
+                return 400, _json(), b'{"error":"rejected","message":"capture_id does not match manifest"}'
+        elif header_capture_id:
+            capture_id = header_capture_id
+        else:
             capture_id = uuid.uuid4().hex
 
+        if manifest is not None:
+            reason = _validate_manifest_envelope(manifest, wav)
+            if reason is not None:
+                return 400, _json(), json.dumps({"error": "rejected", "message": reason}).encode()
+
+        manifest_json = (
+            json.dumps(manifest.to_dict(), sort_keys=True) if manifest is not None else None
+        )
         is_replay = self.store.get(capture_id) is not None
+        if is_replay and manifest is not None:
+            stored_manifest = self.store.get_manifest(capture_id)
+            if stored_manifest is not None and stored_manifest != manifest_json:
+                return (
+                    409,
+                    _json(),
+                    b'{"error":"conflict","message":"capture_id exists with a different manifest"}',
+                )
         try:
-            receipt = self.store.accept(capture_id, wav)
+            receipt = self.store.accept(capture_id, wav, manifest_json=manifest_json)
         except Conflict:
             return 409, _json(), b'{"error":"conflict","message":"capture_id exists with different audio"}'
         except Rejected as exc:
@@ -327,6 +358,7 @@ class Review:
             "transcript": note.transcript,
             "transcript_source": note.transcript_source,
             "audio_purged_at": note.audio_purged_at,
+            "manifest": json.loads(m) if (m := self.store.get_manifest(capture_id)) else None,
         }
         return 200, _json(), json.dumps(payload).encode()
 
@@ -583,6 +615,41 @@ def _multipart_fields(body: bytes, content_type: str) -> tuple[bytes, dict[str, 
             if payload:
                 fields[name] = payload.decode("utf-8", "replace")
     return wav, fields
+
+
+def _validate_manifest_envelope(manifest, wav: bytes) -> str | None:
+    """Check immutable manifest facts against the actual uploaded WAV bytes.
+
+    Returns None when the envelope is truthful, else a short rejection reason.
+    Metadata is never trusted over bytes (docs/CONTRACT-NOTES.md).
+    """
+    import hashlib as _hashlib
+    import io as _io
+    import wave as _wave
+
+    digest = _hashlib.sha256(wav).hexdigest()
+    if manifest.audio.sha256 != digest:
+        return "manifest audio hash does not match uploaded bytes"
+    if manifest.audio.bytes != len(wav):
+        return "manifest byte count does not match uploaded bytes"
+    try:
+        with _wave.open(_io.BytesIO(wav), "rb") as audio:
+            channels = audio.getnchannels()
+            rate = audio.getframerate()
+            width = audio.getsampwidth()
+            frames = audio.getnframes()
+    except (_wave.Error, EOFError):
+        return "uploaded audio is not a readable WAV"
+    if manifest.audio.channels != channels:
+        return "manifest channels do not match uploaded WAV"
+    if manifest.audio.sample_rate_hz != rate:
+        return "manifest sample rate does not match uploaded WAV"
+    if manifest.audio.sample_width_bits != width * 8:
+        return "manifest sample width does not match uploaded WAV"
+    actual_ms = round((frames / rate) * 1000) if rate else 0
+    if abs(manifest.duration_ms - actual_ms) > 100:
+        return "manifest duration does not match uploaded WAV"
+    return None
 
 
 def _file_field(body: bytes, content_type: str) -> bytes:

@@ -11,6 +11,7 @@ import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from contracts.schemas import CaptureManifest
 from device.src.spool import (
     DeviceSpool,
     InvalidWavError,
@@ -294,3 +295,88 @@ class SpoolUploaderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ManifestEnvelopeTests(unittest.TestCase):
+    """Provisional v1 capture manifest (docs/CONTRACT-NOTES.md), synthetic data."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="whis-manifest-test-"))
+        self.spool = DeviceSpool(self.tmp, device_id="dev-test-1")
+        self.valid_wav = make_wav_bytes()
+        self.uploader = SpoolUploader(
+            self.spool, "http://127.0.0.1:9999", token="test-token", allow_insecure_loopback=True,
+        )
+
+    def _record(self, cap_id):
+        self.spool.start_capture(cap_id)
+        return self.spool.finalize_capture(cap_id, self.valid_wav)
+
+    def test_finalize_builds_unknown_clock_manifest(self):
+        record = self._record("cap-manifest-1")
+        self.assertIsNotNone(record.manifest_json)
+        m = CaptureManifest.from_dict(json.loads(record.manifest_json))
+        self.assertEqual(m.device_id, "dev-test-1")
+        self.assertEqual(m.capture_id, "cap-manifest-1")
+        self.assertEqual(m.clock_status, "unknown")
+        self.assertEqual(m.captured_at, "")
+        self.assertEqual(m.audio.sha256, record.sha256)
+        self.assertEqual(m.audio.bytes, record.byte_count)
+        self.assertEqual(m.audio.sample_rate_hz, 16000)
+        self.assertEqual(m.audio.channels, 1)
+        self.assertEqual(m.audio.sample_width_bits, 16)
+        self.assertEqual(m.sequence, 0)
+
+    def test_sequence_is_monotonic_per_device(self):
+        first = self._record("cap-seq-a")
+        second = self._record("cap-seq-b")
+        self.assertEqual(second.sequence, first.sequence + 1)
+
+    @patch("device.src.spool._open_request")
+    def test_upload_sends_manifest_multipart_envelope(self, mock_urlopen):
+        cap_id = "cap-manifest-upload"
+        record = self._record(cap_id)
+        seen_request = {}
+
+        def capture_request(req, timeout=None):
+            seen_request["body"] = req.data
+            seen_request["content_type"] = req.headers.get("Content-type")
+            mock_resp = MagicMock()
+            mock_resp.status = 201
+            mock_resp.read.return_value = json.dumps({
+                "capture_id": cap_id,
+                "receipt_id": "receipt-m1",
+                "sha256": record.sha256,
+                "byte_count": record.byte_count,
+                "received_at": "2026-09-28T00:00:00Z",
+            }).encode()
+            mock_resp.__enter__.return_value = mock_resp
+            return mock_resp
+
+        mock_urlopen.side_effect = capture_request
+        res = self.uploader.upload_one(record)
+        self.assertEqual(res["status"], "acknowledged")
+        body = seen_request["body"]
+        self.assertIn(b'form-data; name="metadata"', body)
+        self.assertIn(b'filename="cap-manifest-upload.wav"', body)
+        self.assertIn(b'"clock_status": "unknown"', body)
+        # The uploaded bytes themselves are intact inside the multipart body.
+        self.assertIn(self.valid_wav, body)
+
+    @patch("device.src.spool._open_request")
+    def test_manifest_audio_mismatch_never_uploaded(self, mock_urlopen):
+        cap_id = "cap-manifest-tamper"
+        record = self._record(cap_id)
+        tampered = json.loads(record.manifest_json)
+        tampered["audio"]["sha256"] = "b" * 64
+        with self.spool._connect() as conn:
+            conn.execute(
+                "UPDATE spool_queue SET manifest_json = ? WHERE capture_id = ?",
+                (json.dumps(tampered), cap_id),
+            )
+        record = self.spool.get_record(cap_id)
+        res = self.uploader.upload_one(record)
+        self.assertEqual(res["status"], "error")
+        self.assertEqual(res["error"], "manifest does not match audio")
+        mock_urlopen.assert_not_called()
+        self.assertNotEqual(self.spool.get_record(cap_id).status, "acknowledged")

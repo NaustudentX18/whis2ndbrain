@@ -89,7 +89,13 @@ class Store:
             )
         self._quarantine()
 
-    def accept(self, capture_id: str, wav: bytes, after_write: Callable[[], None] | None = None) -> Receipt:
+    def accept(
+        self,
+        capture_id: str,
+        wav: bytes,
+        after_write: Callable[[], None] | None = None,
+        manifest_json: str | None = None,
+    ) -> Receipt:
         _check_id(capture_id)
         if len(wav) > MAX_WAV_BYTES:
             raise Rejected("not a wav")
@@ -98,13 +104,25 @@ class Store:
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                "SELECT receipt_id, sha256, byte_count FROM captures WHERE capture_id = ?",
+                "SELECT receipt_id, sha256, byte_count, manifest_json "
+                "FROM captures WHERE capture_id = ?",
                 (capture_id,),
             ).fetchone()
             if row is not None:
-                if row["sha256"] == digest:
-                    return Receipt(capture_id, row["sha256"], row["byte_count"], row["receipt_id"])
-                raise Conflict(capture_id)
+                if row["sha256"] != digest:
+                    raise Conflict(capture_id)
+                # Same bytes: replay. A different immutable manifest for the
+                # same ID + bytes is a conflict; the original receipt stands.
+                stored_manifest = row["manifest_json"]
+                if manifest_json is not None and stored_manifest is not None:
+                    if stored_manifest != manifest_json:
+                        raise Conflict(capture_id)
+                elif manifest_json is not None and stored_manifest is None:
+                    conn.execute(
+                        "UPDATE captures SET manifest_json = ? WHERE capture_id = ?",
+                        (manifest_json, capture_id),
+                    )
+                return Receipt(capture_id, row["sha256"], row["byte_count"], row["receipt_id"])
             if not _is_wav(wav):
                 raise Rejected("not a wav")
             _write_durable(dest, wav)
@@ -116,10 +134,11 @@ class Store:
                 conn.execute(
                     """
                     INSERT INTO captures
-                        (capture_id, receipt_id, sha256, byte_count, status, received_at)
-                    VALUES (?, ?, ?, ?, 'received', ?)
+                        (capture_id, receipt_id, sha256, byte_count, status, received_at,
+                         manifest_json)
+                    VALUES (?, ?, ?, ?, 'received', ?, ?)
                     """,
-                    (capture_id, receipt_id, digest, len(wav), received_at),
+                    (capture_id, receipt_id, digest, len(wav), received_at, manifest_json),
                 )
                 conn.execute(
                     "INSERT INTO transcription_jobs(capture_id, state) VALUES (?, 'queued')",
@@ -129,6 +148,13 @@ class Store:
                 dest.unlink(missing_ok=True)
                 raise
         return Receipt(capture_id, digest, len(wav), receipt_id)
+
+    def get_manifest(self, capture_id: str) -> str | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT manifest_json FROM captures WHERE capture_id = ?", (capture_id,)
+            ).fetchone()
+        return row["manifest_json"] if row is not None else None
 
     def get(self, capture_id: str) -> Receipt | None:
         with self._connect() as conn:
@@ -334,6 +360,8 @@ class Store:
             conn.execute("ALTER TABLE captures ADD COLUMN actionable INTEGER")
         if "annotation_source" not in have:
             conn.execute("ALTER TABLE captures ADD COLUMN annotation_source TEXT")
+        if "manifest_json" not in have:
+            conn.execute("ALTER TABLE captures ADD COLUMN manifest_json TEXT")
 
     def _quarantine(self) -> None:
         orphans = self.root / "orphans"
