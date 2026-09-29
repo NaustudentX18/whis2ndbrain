@@ -14,6 +14,7 @@ class NotesScreen extends StatefulWidget {
 class _NotesScreenState extends State<NotesScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Note> _notes = [];
+  bool _showTrash = false;
   bool _isLoading = false;
   String? _errorMessage;
   String? _selectedFilter; // null = all, or status value
@@ -41,6 +42,7 @@ class _NotesScreenState extends State<NotesScreen> {
         status: _selectedFilter,
         search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
         limit: 100,
+        includeDeleted: _showTrash,
       );
       setState(() {
         _notes = res.items;
@@ -78,8 +80,16 @@ class _NotesScreenState extends State<NotesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Voice Notes'),
+        title: Text(_showTrash ? 'Voice Notes (trash)' : 'Voice Notes'),
         actions: [
+          IconButton(
+            tooltip: _showTrash ? 'Hide deleted notes' : 'Show deleted notes',
+            icon: Icon(_showTrash ? Icons.delete : Icons.delete_outline),
+            onPressed: () {
+              setState(() => _showTrash = !_showTrash);
+              _loadNotes();
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _isLoading ? null : _loadNotes,
@@ -362,6 +372,8 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _isSaving = false;
+  late Note _note;
+  bool _isBusy = false;
 
   final List<String> _categories = [
     'thought',
@@ -377,21 +389,24 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
   @override
   void initState() {
     super.initState();
+    _note = widget.note;
     _transcriptController = TextEditingController(text: widget.note.transcript ?? '');
     _category = widget.note.category ?? 'unreviewed';
     _urgency = widget.note.urgency ?? 'normal';
     _actionable = widget.note.actionable ?? false;
 
-    if (widget.note.hasAudio) {
+    if (_note.hasAudio && !_note.isDeleted) {
       _initAudio();
     }
   }
 
   Future<void> _initAudio() async {
     _player = AudioPlayer();
-    final url = widget.client.audioUrl(widget.note.captureId);
+    final url = widget.client.audioUrl(_note.captureId);
     try {
-      await _player!.setUrl(url);
+      // The host authenticates every private route via the Authorization
+      // header - token-in-URL was never accepted by the server.
+      await _player!.setUrl(url, headers: widget.client.audioHeaders);
       _player!.playerStateStream.listen((state) {
         if (mounted) {
           setState(() {
@@ -418,19 +433,51 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
   }
 
   Future<void> _saveCorrection() async {
+    if (_note.isDeleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Restore the note before editing it.')),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     try {
-      await widget.client.patchNote(widget.note.captureId, {
-        'transcript': _transcriptController.text,
-        'category': _category,
-        'urgency': _urgency,
-        'actionable': _actionable,
-      });
+      final updated = await widget.client.patchNote(
+        _note.captureId,
+        {
+          'transcript': _transcriptController.text,
+          'category': _category,
+          'urgency': _urgency,
+          'actionable': _actionable,
+        },
+        revision: _note.revision,
+      );
       widget.onUpdated();
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Note updated successfully')),
+        );
+      }
+      // keep local state fresh for any follow-up action
+      setState(() => _note = updated);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.isConflict) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Note changed elsewhere (revision conflict). Reopen to get the latest text.'),
+          ),
+        );
+        try {
+          final fresh = await widget.client.getNote(_note.captureId);
+          setState(() => _note = fresh);
+        } on ApiException {
+          // leave the local copy; the user will reopen the sheet
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save: $e')),
         );
       }
     } catch (e) {
@@ -441,6 +488,57 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _toggleDeleted() async {
+    setState(() => _isBusy = true);
+    try {
+      if (_note.isDeleted) {
+        await widget.client.restoreNote(_note.captureId);
+      } else {
+        await widget.client.deleteNote(_note.captureId);
+      }
+      final fresh = await widget.client.getNote(_note.captureId);
+      setState(() => _note = fresh);
+      widget.onUpdated();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text(_note.isDeleted ? 'Note deleted (trash).' : 'Note restored.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Action failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  Future<void> _retryTranscription() async {
+    setState(() => _isBusy = true);
+    try {
+      await widget.client.retryTranscription(_note.captureId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Retry queued.')),
+        );
+      }
+      widget.onUpdated();
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Retry failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
     }
   }
 
@@ -464,7 +562,7 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    'Capture ${widget.note.captureId}',
+                    'Capture ${_note.captureId}',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
@@ -475,8 +573,41 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
               ],
             ),
             const SizedBox(height: 12),
+            if (_note.isDeleted)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Deleted (in trash) - hidden from lists. Restore to edit.',
+                  style: TextStyle(color: cs.onErrorContainer),
+                ),
+              )
+            else if (_note.status == 'not_transcribed')
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: cs.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('Not transcribed.',
+                          style: TextStyle(color: cs.onSecondaryContainer)),
+                    ),
+                    TextButton(
+                      onPressed: _isBusy ? null : _retryTranscription,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
             // Audio player bar
-            if (widget.note.hasAudio && _player != null) ...[
+            if (_note.hasAudio && !_note.isDeleted && _player != null) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
@@ -579,6 +710,12 @@ class _NoteDetailSheetState extends State<_NoteDetailSheet> {
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _isBusy ? null : _toggleDeleted,
+              icon: Icon(_note.isDeleted ? Icons.restore_from_trash : Icons.delete_outline),
+              label: Text(_note.isDeleted ? 'Restore from trash' : 'Delete note'),
             ),
           ],
         ),

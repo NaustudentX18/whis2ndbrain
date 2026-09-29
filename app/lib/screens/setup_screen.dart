@@ -12,7 +12,9 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _hostController = TextEditingController(text: 'http://127.0.0.1:8765');
+  // Real tailnet origin (TLS, LE cert via tailscale serve); loopback only for on-host tests.
+  final _hostController =
+      TextEditingController(text: 'https://omarchy.tail9760ad.ts.net:8765');
   final _tokenController = TextEditingController();
 
   bool _isTesting = false;

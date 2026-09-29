@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 /// flutter_secure_storage. The client throws [ApiException] for all
 /// non-2xx responses so callers can handle them uniformly.
 class ApiClient {
-  final String baseUrl; // e.g. "http://100.x.x.x:8765"
+  final String baseUrl; // e.g. "https://omarchy.tail9760ad.ts.net:8765"
   final String token;
 
   const ApiClient({required this.baseUrl, required this.token});
@@ -16,6 +16,13 @@ class ApiClient {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+      };
+
+  /// Auth headers for media players streaming audio outside package:http
+  /// (the host requires the Authorization header; token-in-URL never worked).
+  Map<String, String> get audioHeaders => {
+        'Authorization': 'Bearer $token',
+        'Accept': 'audio/wav',
       };
 
   Uri _uri(String path, [Map<String, String>? query]) {
@@ -32,10 +39,11 @@ class ApiClient {
     return _parse(resp);
   }
 
-  Future<Map<String, dynamic>> _patch(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> _patch(String path, Map<String, dynamic> body,
+      [Map<String, String>? extraHeaders]) async {
     final resp = await http.patch(
       _uri(path),
-      headers: _headers,
+      headers: {..._headers, ...?extraHeaders},
       body: jsonEncode(body),
     );
     return _parse(resp);
@@ -48,6 +56,11 @@ class ApiClient {
       headers: _headers,
       body: body != null ? jsonEncode(body) : null,
     );
+    return _parse(resp);
+  }
+
+  Future<Map<String, dynamic>> _delete(String path) async {
+    final resp = await http.delete(_uri(path), headers: _headers);
     return _parse(resp);
   }
 
@@ -79,17 +92,23 @@ class ApiClient {
 
   // ── Notes ─────────────────────────────────────────────────────────────────
 
+  /// Keyset cursor pagination when [cursor] is given (stable under new
+  /// captures); [includeDeleted] lists tombstoned notes (trash view).
   Future<NotesPage> listNotes({
     String? status,
     String? search,
     int limit = 50,
     int offset = 0,
+    String? cursor,
+    bool includeDeleted = false,
   }) async {
     final query = <String, String>{
       'limit': '$limit',
       'offset': '$offset',
       if (status != null) 'status': status,
       if (search != null && search.isNotEmpty) 'search': search,
+      if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
+      if (includeDeleted) 'include_deleted': 'true',
     };
     final data = await _get('/api/v1/notes', query);
     return NotesPage.fromJson(data);
@@ -100,9 +119,30 @@ class ApiClient {
     return Note.fromJson(data);
   }
 
-  Future<Note> patchNote(String captureId, Map<String, dynamic> patch) async {
-    final data = await _patch('/api/v1/notes/$captureId', patch);
+  /// Patches a note. With [revision], sends `If-Match` for optimistic
+  /// concurrency: a 412 [ApiException] means the note changed elsewhere -
+  /// reload and reapply; the first writer's edit is the one that survived.
+  Future<Note> patchNote(String captureId, Map<String, dynamic> patch,
+      {int? revision}) async {
+    final data = await _patch('/api/v1/notes/$captureId', patch, {
+      if (revision != null) 'if-match': '"$revision"',
+    });
     return Note.fromJson(data);
+  }
+
+  /// Tombstones a note (hidden from lists; rows and held audio retained).
+  Future<void> deleteNote(String captureId) async {
+    await _delete('/api/v1/notes/$captureId');
+  }
+
+  /// Clears a tombstone.
+  Future<void> restoreNote(String captureId) async {
+    await _post('/api/v1/notes/$captureId/restore');
+  }
+
+  /// Owner-requested retry of an exhausted transcription job.
+  Future<void> retryTranscription(String captureId) async {
+    await _post('/api/v1/notes/$captureId/retry');
   }
 
   // ── Settings ──────────────────────────────────────────────────────────────
@@ -121,10 +161,10 @@ class ApiClient {
           [Map<String, dynamic>? data]) =>
       _post('/api/v1/device/heartbeat', data);
 
-  // ── Audio (local streaming — returns the URL for just_audio) ─────────────
+  // ── Audio (streamed by the player with [audioHeaders]; byte-range capable)
 
   String audioUrl(String captureId) =>
-      '$baseUrl/n/$captureId/audio?token=${Uri.encodeComponent(token)}';
+      '$baseUrl/api/v1/notes/$captureId/audio';
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
@@ -139,6 +179,8 @@ class Note {
   final String? category;
   final String? urgency;
   final bool? actionable;
+  final String? deletedAt;
+  final int revision;
 
   const Note({
     required this.captureId,
@@ -150,6 +192,8 @@ class Note {
     this.category,
     this.urgency,
     this.actionable,
+    this.deletedAt,
+    this.revision = 0,
   });
 
   factory Note.fromJson(Map<String, dynamic> j) => Note(
@@ -162,12 +206,15 @@ class Note {
         category: j['category'] as String?,
         urgency: j['urgency'] as String?,
         actionable: j['actionable'] as bool?,
+        deletedAt: j['deleted_at'] as String?,
+        revision: (j['revision'] as num?)?.toInt() ?? 0,
       );
 
   bool get hasAudio => audioPurgedAt == null;
   bool get isOwnerCorrected => transcriptSource == 'owner';
   bool get isTranscribed =>
       status == 'transcribed' || status == 'reviewed';
+  bool get isDeleted => deletedAt != null;
 }
 
 class NotesPage {
@@ -175,12 +222,14 @@ class NotesPage {
   final int total;
   final int limit;
   final int offset;
+  final String? nextCursor;
 
   const NotesPage(
       {required this.items,
       required this.total,
       required this.limit,
-      required this.offset});
+      required this.offset,
+      this.nextCursor});
 
   factory NotesPage.fromJson(Map<String, dynamic> j) => NotesPage(
         items: (j['items'] as List)
@@ -189,9 +238,13 @@ class NotesPage {
         total: j['total'] as int,
         limit: j['limit'] as int,
         offset: j['offset'] as int,
+        nextCursor: j['next_cursor'] as String?,
       );
 
-  bool get hasMore => offset + items.length < total;
+  /// Cursor-first: a present cursor means another page exists. Falls back
+  /// to offset arithmetic for hosts that do not send cursors.
+  bool get hasMore => nextCursor != null ||
+      (nextCursor == null && items.isNotEmpty && offset + items.length < total);
 }
 
 // ── Exception ─────────────────────────────────────────────────────────────────
@@ -201,6 +254,8 @@ class ApiException implements Exception {
   final String message;
 
   const ApiException(this.statusCode, this.message);
+
+  bool get isConflict => statusCode == 412;
 
   @override
   String toString() => 'ApiException($statusCode): $message';
