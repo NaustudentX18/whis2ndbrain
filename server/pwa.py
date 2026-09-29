@@ -47,7 +47,7 @@ self.addEventListener('fetch', (e) => {
 """
 
 
-def get_pwa_html() -> bytes:
+def get_pwa_html(csrf: str | None = None) -> bytes:
     return """<!doctype html>
 <html lang="en">
 <head>
@@ -264,6 +264,8 @@ def get_pwa_html() -> bytes:
     </a>
     <div style="display:flex; align-items:center; gap:0.5rem;">
       <span class="status-dot" title="Review page loaded; device connection not checked"></span>
+      <button id="trashToggle" class="btn" style="padding:0.25rem 0.6rem; font-size:0.75rem;" aria-pressed="false" title="Show deleted notes">Trash</button>
+      <button id="logoutBtn" class="btn" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Logout</button>
       <a href="/" class="btn" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Classic</a>
     </div>
   </header>
@@ -300,19 +302,27 @@ def get_pwa_html() -> bytes:
   <script>
     let activeFilter = '';
     let currentEditId = null;
+    let currentEditRev = null;
     let lastEditButton = null;
+    let showTrash = false;
+    let nextCursor = null;
+    const csrf = '__CSRF_TOKEN__';
 
-    async function fetchNotes() {
+    async function fetchNotes(append) {
       const search = document.getElementById('searchInput').value.trim();
       let url = `/api/v1/notes?limit=50`;
       if (activeFilter) url += `&status=${encodeURIComponent(activeFilter)}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (showTrash) url += `&include_deleted=true`;
+      if (append && nextCursor) url += `&cursor=${encodeURIComponent(nextCursor)}`;
+      if (!append) nextCursor = null;
 
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        renderNotes(data.items);
+        nextCursor = data.next_cursor || null;
+        renderNotes(data.items, append);
       } catch (err) {
         document.getElementById('notesContainer').innerHTML = `
           <div class="empty-state" style="color:var(--danger)">Failed to load notes: ${err.message}</div>
@@ -320,23 +330,55 @@ def get_pwa_html() -> bytes:
       }
     }
 
-    function renderNotes(items) {
+    async function postAction(path) {
+      try {
+        const res = await fetch(path, {
+          method: 'POST',
+          headers: csrf ? { 'X-CSRF-Token': csrf } : {}
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        fetchNotes();
+      } catch (err) {
+        alert('Action failed: ' + err.message);
+      }
+    }
+
+    async function deleteNote(id) {
+      try {
+        const res = await fetch(`/api/v1/notes/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: csrf ? { 'X-CSRF-Token': csrf } : {}
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        fetchNotes();
+      } catch (err) {
+        alert('Delete failed: ' + err.message);
+      }
+    }
+
+    function renderNotes(items, appendMode) {
       const container = document.getElementById('notesContainer');
       if (!items || items.length === 0) {
         container.innerHTML = '<div class="empty-state">No notes match this filter.</div>';
         return;
       }
-      container.innerHTML = items.map(n => {
+      const html = items.map(n => {
         const id = String(n.capture_id || '');
         const encodedId = encodeURIComponent(id);
         const badgeClass = `badge-${String(n.status || '').replace('_', '-')}`;
         const sourceBadge = n.transcript_source === 'owner' ? ' • Owner Edit' : (n.transcript_source === 'model' ? ' • Machine' : '');
         const player = n.audio_purged_at ? '<div style="font-size:0.85rem; color:#8b949e">Audio hold ended. Note kept.</div>' :
-          `<audio controls preload="none" src="/n/${encodedId}/audio"></audio>`;
+          `<audio controls preload="none" src="/api/v1/notes/${encodedId}/audio"></audio>`;
         const transcript = n.transcript || (n.status === 'transcribing' ? 'Transcribing audio...' : 'No transcript available.');
+        const deleted = !!n.deleted_at;
+        const tombstone = deleted ? '<div style="font-size:0.85rem; color:var(--danger)">Deleted (in trash) - hidden from lists.</div>' : '';
+        const retryBtn = (!deleted && n.status === 'not_transcribed') ? `<button class="btn retry-btn" type="button">Retry</button>` : '';
+        const lifecycleBtn = deleted
+          ? `<button class="btn restore-btn" type="button">Restore</button>`
+          : `<button class="btn delete-btn" type="button">Delete</button>`;
 
         return `
-          <div class="note-card" data-id="${escapeHtml(id)}">
+          <div class="note-card" data-id="${escapeHtml(id)}" data-rev="${n.revision ?? 0}">
             <div class="card-meta">
               <span>${escapeHtml(id.substring(0, 12))}...</span>
               <div>
@@ -344,17 +386,48 @@ def get_pwa_html() -> bytes:
                 <span style="font-size:0.75rem">${escapeHtml(sourceBadge)}</span>
               </div>
             </div>
+            ${tombstone}
             <div class="transcript-text">${escapeHtml(transcript)}</div>
             ${player}
             <div class="card-actions">
               <button class="btn edit-btn" type="button">Edit</button>
               <a href="/api/v1/notes/${encodedId}/markdown" class="btn" download="${escapeHtml(id)}.md">Markdown</a>
+              ${retryBtn}
+              ${lifecycleBtn}
             </div>
           </div>
         `;
       }).join('');
+      if (appendMode && container.querySelector('.note-card')) {
+        container.insertAdjacentHTML('beforeend', html);
+        const existing = container.querySelector('.load-more-btn');
+        if (existing) existing.remove();
+      } else {
+        container.innerHTML = html;
+      }
+      if (nextCursor) {
+        const more = document.createElement('button');
+        more.className = 'btn load-more-btn';
+        more.type = 'button';
+        more.textContent = 'Load more';
+        more.style.margin = '0.5rem auto';
+        more.style.display = 'block';
+        more.addEventListener('click', () => fetchNotes(true));
+        container.appendChild(more);
+      }
       container.querySelectorAll('.edit-btn').forEach(button => {
         button.addEventListener('click', () => openEdit(button.closest('.note-card'), button));
+      });
+      container.querySelectorAll('.delete-btn').forEach(button => {
+        button.addEventListener('click', () => deleteNote(button.closest('.note-card').dataset.id));
+      });
+      container.querySelectorAll('.restore-btn').forEach(button => {
+        button.addEventListener('click', () =>
+          postAction(`/api/v1/notes/${encodeURIComponent(button.closest('.note-card').dataset.id)}/restore`));
+      });
+      container.querySelectorAll('.retry-btn').forEach(button => {
+        button.addEventListener('click', () =>
+          postAction(`/api/v1/notes/${encodeURIComponent(button.closest('.note-card').dataset.id)}/retry`));
       });
     }
 
@@ -366,6 +439,7 @@ def get_pwa_html() -> bytes:
 
     function openEdit(card, button) {
       currentEditId = card.dataset.id;
+      currentEditRev = card.dataset.rev || null;
       lastEditButton = button;
       document.getElementById('editTranscriptInput').value = card.querySelector('.transcript-text').innerText;
       document.getElementById('editModal').classList.add('open');
@@ -375,6 +449,7 @@ def get_pwa_html() -> bytes:
     function closeEdit() {
       document.getElementById('editModal').classList.remove('open');
       currentEditId = null;
+      currentEditRev = null;
       if (lastEditButton?.isConnected) lastEditButton.focus();
     }
 
@@ -386,12 +461,22 @@ def get_pwa_html() -> bytes:
     document.getElementById('saveModalBtn').addEventListener('click', async () => {
       if (!currentEditId) return;
       const text = document.getElementById('editTranscriptInput').value;
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentEditRev !== null && currentEditRev !== undefined && currentEditRev !== 'null') {
+        headers['If-Match'] = `"${currentEditRev}"`;
+      }
       try {
         const res = await fetch(`/api/v1/notes/${encodeURIComponent(currentEditId)}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           body: JSON.stringify({ transcript: text })
         });
+        if (res.status === 412) {
+          alert('Note changed elsewhere (revision conflict). The list now shows the latest text.');
+          closeEdit();
+          fetchNotes();
+          return;
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         closeEdit();
         fetchNotes();
@@ -415,6 +500,24 @@ def get_pwa_html() -> bytes:
       searchTimer = setTimeout(fetchNotes, 300);
     });
 
+    document.getElementById('trashToggle').addEventListener('click', () => {
+      showTrash = !showTrash;
+      const btn = document.getElementById('trashToggle');
+      btn.setAttribute('aria-pressed', showTrash ? 'true' : 'false');
+      btn.textContent = showTrash ? 'Trash (on)' : 'Trash';
+      fetchNotes();
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        await fetch('/logout', {
+          method: 'POST',
+          headers: csrf ? { 'X-CSRF-Token': csrf } : {}
+        });
+      } catch (_) { /* the session dies server-side regardless */ }
+      window.location.href = '/';
+    });
+
     // Initial load
     fetchNotes();
 
@@ -428,4 +531,4 @@ def get_pwa_html() -> bytes:
   </script>
 </body>
 </html>
-""".encode()
+""".replace("__CSRF_TOKEN__", csrf or "").encode()

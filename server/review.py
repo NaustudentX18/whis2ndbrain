@@ -122,7 +122,7 @@ class Review:
             return 400, _html(), _page("Missing or invalid CSRF token. Reload the page and retry.")
 
         if method == "GET" and path == "/pwa":
-            return 200, _html(), get_pwa_html()
+            return 200, _html(), get_pwa_html(csrf)
 
         if method == "POST" and path == "/api/v1/captures":
             return self._api_capture_upload(body, headers)
@@ -1090,13 +1090,25 @@ def create_handler(store: Store, token: str, runner=None, settings_store=None, t
         def do_PATCH(self) -> None:
             self._read_and_dispatch("PATCH")
 
+        def do_DELETE(self) -> None:
+            self._read_and_dispatch("DELETE")
+
         def _read_and_dispatch(self, method: str) -> None:
             if self.headers.get("Transfer-Encoding") is not None:
                 self.close_connection = True
                 self._send_error(400, b'{"error":"transfer encoding not supported"}')
                 return
             length = self.headers.get("Content-Length")
-            if length is None or len(length) > 12 or not length.isascii() or not length.isdecimal():
+            if length is None:
+                # A body-less DELETE (the normal tombstone call from clients)
+                # carries no Content-Length at all; treat it as empty.
+                if method == "DELETE":
+                    self._dispatch("DELETE", b"")
+                    return
+                self.close_connection = True
+                self._send_error(400, b'{"error":"invalid content length"}')
+                return
+            if len(length) > 12 or not length.isascii() or not length.isdecimal():
                 self.close_connection = True
                 self._send_error(400, b'{"error":"invalid content length"}')
                 return
