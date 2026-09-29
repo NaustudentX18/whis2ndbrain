@@ -216,14 +216,14 @@ The `.gitignore` already excludes `*.key`, `*.token`, `data/`, `*.db`, `*.wav`.
 
 ## Open security tasks (pre-pilot)
 
-- [ ] Wrap HTTP server with TLS (Tailscale preferred; self-signed CA as fallback) - BP1 item 3
+- [x] Wrap HTTP server with TLS (Tailscale preferred; self-signed CA as fallback) - tailscale serve on :8765, LE cert, tailnet-only; see docs/DEPLOYMENT.md, 2026-09-29
 - [x] Separate device bearer token from owner token (WB-022) - pairing lane, 2026-09-29
 - [ ] Implement `drive-auth` command and Drive backup runner
 - [ ] Implement encryption migration script for existing `.wav` -> `.enc`
 - [x] Add rate limiting on `/login` (brute-force protection) - 2026-09-29
 - [ ] Add `Content-Security-Policy` header to review/PWA responses
 - [ ] Audit log (redacted): capture received, exported, token rotated - no transcript content in logs
-- [ ] Verify cookie `Secure` flag when running behind Tailscale (HTTPS required for Secure cookies)
+- [x] Verify cookie `Secure` flag when running behind Tailscale - proven 2026-09-29: form login over the TLS origin sets the Secure session cookie and it authorises subsequent requests (see docs/DEPLOYMENT.md evidence)
 - [x] CSRF token on state-mutating classic HTML forms (`/upload`, `/n/{id}`) - 2026-09-29
 
 > **Owner sign-off required before** enabling encryption on real audio, connecting Drive, or running a pilot with real speech data.
