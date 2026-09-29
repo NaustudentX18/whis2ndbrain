@@ -80,11 +80,67 @@ void main() {
   });
 
   group('ApiClient helper tests', () {
-    test('audioUrl builds valid authenticated streaming URL', () {
-      const client = ApiClient(baseUrl: 'http://127.0.0.1:8765', token: 'secret-token-xyz');
+    test('audioUrl targets the byte-range API route with no token in the URL', () {
+      const client = ApiClient(baseUrl: 'https://omarchy.tail9760ad.ts.net:8765', token: 'secret-token-xyz');
       final url = client.audioUrl('cap-abc-123');
 
-      expect(url, 'http://127.0.0.1:8765/n/cap-abc-123/audio?token=secret-token-xyz');
+      expect(url, 'https://omarchy.tail9760ad.ts.net:8765/api/v1/notes/cap-abc-123/audio');
+      expect(url.contains('token'), isFalse);
+      expect(client.audioHeaders['Authorization'], 'Bearer secret-token-xyz');
+    });
+
+    test('Note parses tombstone + revision fields', () {
+      final note = Note.fromJson({
+        'capture_id': 'cap-9',
+        'status': 'reviewed',
+        'transcript': null,
+        'transcript_source': null,
+        'received_at': null,
+        'audio_purged_at': null,
+        'category': null,
+        'urgency': null,
+        'actionable': null,
+        'deleted_at': '2026-09-29T09:00:00Z',
+        'revision': 4,
+      });
+
+      expect(note.isDeleted, isTrue);
+      expect(note.revision, 4);
+    });
+
+    test('Note tolerates hosts that omit tombstone/revision fields', () {
+      final note = Note.fromJson({
+        'capture_id': 'cap-10',
+        'status': 'received',
+      });
+
+      expect(note.isDeleted, isFalse);
+      expect(note.revision, 0);
+    });
+
+    test('NotesPage parses next_cursor and reports hasMore from it', () {
+      final page = NotesPage.fromJson({
+        'items': [],
+        'total': 120,
+        'limit': 100,
+        'offset': 0,
+        'next_cursor': 'cap-100',
+      });
+
+      expect(page.nextCursor, 'cap-100');
+      expect(page.hasMore, isTrue);
+    });
+
+    test('NotesPage without cursor falls back to offset arithmetic', () {
+      final page = NotesPage.fromJson({
+        'items': [],
+        'total': 3,
+        'limit': 100,
+        'offset': 0,
+      });
+
+      expect(page.nextCursor, isNull);
+      expect(page.hasMore, isFalse);
     });
   });
 }
