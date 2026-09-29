@@ -159,6 +159,41 @@ class Jobs:
     def _backoff(self, attempt: int) -> int:
         return min(300, 2 ** max(0, attempt - 1))
 
+    def retry_failed(self, capture_id: str, *, now: float | None = None) -> bool:
+        """Owner-requested manual retry of an exhausted job.
+
+        Requeues a ``failed`` job with a fresh attempt budget and returns the
+        capture to ``received`` so the worker picks it up again. Owner-written
+        transcripts and reviewed notes are never touched.
+        """
+        now = time.time() if now is None else now
+        with self.store._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """SELECT j.state AS job_state, c.transcript_source AS source, c.status AS status
+                   FROM transcription_jobs j JOIN captures c ON c.capture_id = j.capture_id
+                   WHERE j.capture_id = ?""",
+                (capture_id,),
+            ).fetchone()
+            if row is None or row["job_state"] != "failed":
+                return False
+            if row["source"] == "owner" or row["status"] == "reviewed":
+                return False
+            conn.execute(
+                """UPDATE transcription_jobs
+                   SET state='queued', attempt=0, token=NULL, lease_until=NULL,
+                       run_after=?, error=NULL
+                   WHERE capture_id=? AND state='failed'""",
+                (now, capture_id),
+            )
+            conn.execute(
+                """UPDATE captures SET status='received'
+                   WHERE capture_id=? AND status='not_transcribed'
+                     AND transcript_source IS NOT 'owner'""",
+                (capture_id,),
+            )
+            return True
+
     @staticmethod
     def _fail_capture(conn, capture_id: str, error: str) -> None:
         conn.execute(
