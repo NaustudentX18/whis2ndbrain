@@ -37,6 +37,11 @@ class Jobs:
                     error TEXT
                 )"""
             )
+            have = {row["name"] for row in conn.execute("PRAGMA table_info(transcription_jobs)")}
+            if "started_at" not in have:
+                conn.execute("ALTER TABLE transcription_jobs ADD COLUMN started_at REAL")
+            if "finished_at" not in have:
+                conn.execute("ALTER TABLE transcription_jobs ADD COLUMN finished_at REAL")
             # Old captures accepted before jobs existed (or interrupted while
             # transitioning) remain eligible. Deliberately excludes terminal notes.
             conn.execute(
@@ -86,8 +91,8 @@ class Jobs:
                 return None
             attempt = row["attempt"] + 1
             conn.execute(
-                "UPDATE transcription_jobs SET state='running', attempt=?, token=?, lease_until=?, error=NULL WHERE capture_id=? AND state='queued'",
-                (attempt, token, now + self.lease_seconds, row["capture_id"]),
+                "UPDATE transcription_jobs SET state='running', attempt=?, token=?, lease_until=?, error=NULL, started_at=?, finished_at=NULL WHERE capture_id=? AND state='queued'",
+                (attempt, token, now + self.lease_seconds, now, row["capture_id"]),
             )
             conn.execute(
                 "UPDATE captures SET status='transcribing' WHERE capture_id=? AND status='received'",
@@ -120,8 +125,8 @@ class Jobs:
                         (category, urgency, int(actionable), job.capture_id),
                     )
             conn.execute(
-                "UPDATE transcription_jobs SET state='done', token=NULL, lease_until=NULL WHERE capture_id=? AND state='running' AND token=?",
-                (job.capture_id, job.token),
+                "UPDATE transcription_jobs SET state='done', token=NULL, lease_until=NULL, finished_at=? WHERE capture_id=? AND state='running' AND token=?",
+                (now, job.capture_id, job.token),
             )
             return True
 
@@ -151,10 +156,56 @@ class Jobs:
                 self._fail_capture(conn, job.capture_id, message)
             else:
                 conn.execute(
-                    "UPDATE transcription_jobs SET state='queued', token=NULL, lease_until=NULL, run_after=?, error=? WHERE capture_id=?",
+                    "UPDATE transcription_jobs SET state='queued', token=NULL, lease_until=NULL, run_after=?, error=?, finished_at=NULL WHERE capture_id=?",
                     (now + self._backoff(row["attempt"]), message, job.capture_id),
                 )
             return True
+
+    def snapshot(self, *, now: float | None = None) -> dict:
+        """Redacted observability facts: counts, ages and model latency only.
+
+        Never includes transcripts, capture content, error text or tokens -
+        by construction, not by filtering.
+        """
+        now = time.time() if now is None else now
+        with self.store._connect() as conn:
+            by_state = {
+                row["state"]: row["c"]
+                for row in conn.execute(
+                    "SELECT state, COUNT(*) AS c FROM transcription_jobs GROUP BY state"
+                )
+            }
+            oldest = conn.execute(
+                "SELECT MIN(run_after) AS m FROM transcription_jobs WHERE state='queued'"
+            ).fetchone()["m"]
+            durations = [
+                row["d"]
+                for row in conn.execute(
+                    """SELECT finished_at - started_at AS d FROM transcription_jobs
+                       WHERE state='done' AND started_at IS NOT NULL AND finished_at IS NOT NULL
+                       ORDER BY finished_at DESC LIMIT 50"""
+                )
+                if row["d"] is not None and row["d"] >= 0
+            ]
+
+        def pct(p: float) -> float | None:
+            if not durations:
+                return None
+            ordered = sorted(durations)
+            k = min(len(ordered) - 1, round(p / 100 * (len(ordered) - 1)))
+            return round(ordered[k], 3)
+
+        return {
+            "jobs": {
+                "by_state": by_state,
+                "oldest_queued_age_s": round(now - oldest, 3) if oldest is not None else None,
+            },
+            "model": {
+                "latency_sample": len(durations),
+                "latency_p50_s": pct(50),
+                "latency_p95_s": pct(95),
+            },
+        }
 
     def _backoff(self, attempt: int) -> int:
         return min(300, 2 ** max(0, attempt - 1))

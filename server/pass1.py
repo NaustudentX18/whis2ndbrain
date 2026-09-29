@@ -378,6 +378,19 @@ class Store:
         return int(row["c"]) if row else 0
 
 
+    def counts_by_status(self) -> dict:
+        """Count-only capture facts for observability (includes tombstones)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS c FROM captures GROUP BY status"
+            ).fetchall()
+            deleted = conn.execute(
+                "SELECT COUNT(*) AS c FROM captures WHERE deleted_at IS NOT NULL"
+            ).fetchone()["c"]
+        out = {row["status"]: row["c"] for row in rows}
+        out["tombstoned"] = deleted
+        return out
+
     def audio_path(self, capture_id: str) -> Path:
         _check_id(capture_id)
         return self.audio_dir / f"{capture_id}.wav"
