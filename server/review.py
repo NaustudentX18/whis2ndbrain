@@ -6,6 +6,7 @@ import hmac
 import html
 import json
 import queue
+import re
 import sqlite3
 import threading
 import time
@@ -142,6 +143,16 @@ class Review:
                 if method == "POST":
                     return self._api_note_retry(cid)
                 return 405, _json(), b'{"error":"method not allowed"}'
+            if subpath.endswith("/restore"):
+                cid = subpath[: -len("/restore")]
+                if method == "POST":
+                    return self._api_note_restore(cid)
+                return 405, _json(), b'{"error":"method not allowed"}'
+            if subpath.endswith("/audio"):
+                cid = subpath[: -len("/audio")]
+                if method == "GET":
+                    return self._api_note_audio(cid, headers or {})
+                return 405, _json(), b'{"error":"method not allowed"}'
             if "/markdown" in subpath:
                 cid = subpath.replace("/markdown", "")
                 if method == "GET":
@@ -152,6 +163,8 @@ class Review:
                     return self._api_note_get(cid)
                 if method == "PATCH":
                     return self._api_note_patch(cid, body, headers)
+                if method == "DELETE":
+                    return self._api_note_delete(cid)
                 return 405, _json(), b'{"error":"method not allowed"}'
 
         if method == "POST" and path == "/upload":
@@ -217,11 +230,15 @@ class Review:
             return 404, _html(), b"not found"
         if method == "GET" and kind == "audio":
             note = self.store.get_note(capture_id)
-            path = self.store.audio_path(capture_id)
-            if note is None or note.audio_purged_at is not None or not path.is_file():
+            audio = self.store.audio_path(capture_id)
+            if (
+                note is None
+                or note.audio_purged_at is not None
+                or note.deleted_at is not None
+                or not audio.is_file()
+            ):
                 return 404, _html(), b"not found"
-            data = path.read_bytes()
-            return 200, {"content-type": "audio/wav", "cache-control": "private, no-store"}, data
+            return _serve_audio_file(audio, (headers or {}).get("range", ""))
         if method == "GET" and kind == "note":
             inner, head = self._note(capture_id, saved, csrf)
             return 200, _html(), _page(inner, head)
@@ -593,9 +610,28 @@ class Review:
             return 400, _json(), b'{"error":"invalid pagination"}'
         status = params.get("status", [None])[0]
         search = params.get("search", [None])[0]
+        after = (params.get("after", [None])[0] or "").strip()
+        if len(after) > 128:
+            return 400, _json(), b'{"error":"invalid cursor"}'
+        include_raw = (params.get("include_deleted", ["0"])[0] or "").strip().lower()
+        if include_raw in {"1", "true", "yes"}:
+            include_deleted = True
+        elif include_raw in {"", "0", "false", "no"}:
+            include_deleted = False
+        else:
+            return 400, _json(), b'{"error":"invalid include_deleted"}'
 
-        notes = self.store.list_notes(status=status, search=search, limit=limit, offset=offset)
-        total = self.store.count_notes(status=status, search=search)
+        notes = self.store.list_notes(
+            status=status,
+            search=search,
+            limit=limit,
+            offset=offset,
+            include_deleted=include_deleted,
+            after_capture_id=after or None,
+        )
+        total = self.store.count_notes(
+            status=status, search=search, include_deleted=include_deleted
+        )
 
         items = []
         for note in notes:
@@ -609,12 +645,15 @@ class Review:
                 "category": getattr(note, "category", None),
                 "urgency": getattr(note, "urgency", None),
                 "actionable": getattr(note, "actionable", None),
+                "deleted_at": getattr(note, "deleted_at", None),
+                "revision": getattr(note, "revision", 0),
             })
         resp = {
             "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,
+            "next_cursor": items[-1]["capture_id"] if len(items) == limit else None,
         }
         return 200, _json(), json.dumps(resp).encode()
 
@@ -633,15 +672,21 @@ class Review:
             "category": getattr(note, "category", None),
             "urgency": getattr(note, "urgency", None),
             "actionable": getattr(note, "actionable", None),
+            "deleted_at": getattr(note, "deleted_at", None),
+            "revision": getattr(note, "revision", 0),
             "sha256": receipt.sha256 if receipt else None,
             "byte_count": receipt.byte_count if receipt else None,
         }
-        return 200, _json(), json.dumps(resp).encode()
+        headers = _json()
+        headers["etag"] = _revision_etag(note)
+        return 200, headers, json.dumps(resp).encode()
 
     def _api_note_retry(self, capture_id: str):
         note = self.store.get_note(capture_id)
         if note is None:
             return 404, _json(), b'{"error":"not found"}'
+        if getattr(note, "deleted_at", None) is not None:
+            return 409, _json(), b'{"error":"note is deleted"}'
         if self.jobs is None:
             return 409, _json(), b'{"error":"retry unavailable"}'
         accepted = self.jobs.retry_failed(capture_id)
@@ -649,10 +694,55 @@ class Review:
             return 409, _json(), b'{"error":"job not retryable"}'
         return 202, _json(), b'{"status":"queued"}'
 
+    def _api_note_delete(self, capture_id: str):
+        note = self.store.get_note(capture_id)
+        if note is None:
+            return 404, _json(), b'{"error":"not found"}'
+        # HTTP-level idempotency: tombstoning an already-tombstoned note is 204.
+        self.store.delete_note(capture_id)
+        return 204, _json(), b""
+
+    def _api_note_restore(self, capture_id: str):
+        note = self.store.get_note(capture_id)
+        if note is None:
+            return 404, _json(), b'{"error":"not found"}'
+        if not self.store.restore_note(capture_id):
+            return 409, _json(), b'{"error":"note is not deleted"}'
+        return 204, _json(), b""
+
+    def _api_note_audio(self, capture_id: str, headers: dict[str, str]):
+        try:
+            self.store.audio_path(capture_id)
+        except Rejected:
+            return 404, _json(), b'{"error":"not found"}'
+        note = self.store.get_note(capture_id)
+        receipt = self.store.get(capture_id)
+        if note is None or receipt is None:
+            return 404, _json(), b'{"error":"not found"}'
+        if note.audio_purged_at is not None:
+            return 410, _json(), b'{"error":"audio purged"}'
+        if getattr(note, "deleted_at", None) is not None:
+            return 404, _json(), b'{"error":"not found"}'
+        audio = self.store.audio_path(capture_id)
+        if not audio.is_file():
+            return 404, _json(), b'{"error":"not found"}'
+        return _serve_audio_file(audio, headers.get("range", ""))
+
     def _api_note_patch(self, capture_id: str, body: bytes, headers: dict[str, str]):
         note = self.store.get_note(capture_id)
         if note is None:
             return 404, _json(), b'{"error":"not found"}'
+        if getattr(note, "deleted_at", None) is not None:
+            return 409, _json(), b'{"error":"note is deleted"}'
+        if_match = (headers or {}).get("if-match")
+        if if_match is not None:
+            verdict = _if_match_revision(if_match, getattr(note, "revision", 0))
+            if verdict is None:
+                return 400, _json(), b'{"error":"invalid if-match"}'
+            if not verdict:
+                return 412, _json(), json.dumps(
+                    {"error": "revision conflict", "current_revision": note.revision}
+                ).encode()
         try:
             data = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -695,13 +785,18 @@ class Review:
             "category": updated.category,
             "urgency": updated.urgency,
             "actionable": updated.actionable,
+            "revision": getattr(updated, "revision", 0),
         }
-        return 200, _json(), json.dumps(resp).encode()
+        headers = _json()
+        headers["etag"] = _revision_etag(updated)
+        return 200, headers, json.dumps(resp).encode()
 
     def _api_note_markdown(self, capture_id: str):
         note = self.store.get_note(capture_id)
         receipt = self.store.get(capture_id)
         if note is None or receipt is None:
+            return 404, _json(), b'{"error":"not found"}'
+        if getattr(note, "deleted_at", None) is not None:
             return 404, _json(), b'{"error":"not found"}'
         from server.export import build_markdown_body
 
@@ -828,6 +923,71 @@ def _html() -> dict[str, str]:
 def _json() -> dict[str, str]:
     return {"content-type": "application/json; charset=utf-8"}
 
+
+def _revision_etag(note) -> str:
+    return f'"rev-{getattr(note, "revision", 0)}"'
+
+
+def _if_match_revision(value: str, current: int) -> bool | None:
+    """Interpret an If-Match header against the note revision.
+
+    Accepts "rev-N" (our ETag form, weak/quoted or bare), a bare/quoted
+    integer, or "*" (any current revision). Returns None for garbage.
+    """
+    v = value.strip()
+    if v == "*":
+        return True
+    m = re.search(r"rev-(\d+)", v)
+    if m is None:
+        m = re.fullmatch(r'"?(\d+)"?', v)
+    if m is None:
+        return None
+    return int(m.group(1)) == current
+
+
+def _parse_byte_range(header: str, size: int):
+    """Parse a single-range Range header against a body of `size` bytes.
+
+    Returns (start, end) inclusive, the string "unsatisfiable", or None
+    (no usable Range: serve the full body — covers malformed, multi-range
+    and inverted ranges per RFC 7233 §2.1/§4.4 leniency).
+    """
+    if not header:
+        return None
+    m = re.fullmatch(r"bytes=(\d*)-(\d*)", header.strip())
+    if m is None or (not m.group(1) and not m.group(2)):
+        return None
+    if m.group(1) == "":
+        n = int(m.group(2))
+        if n == 0 or size == 0:
+            return "unsatisfiable"
+        return (max(0, size - n), size - 1)
+    start = int(m.group(1))
+    if start >= size:
+        return "unsatisfiable"
+    end = int(m.group(2)) if m.group(2) else size - 1
+    if end < start:
+        return None
+    return (start, min(end, size - 1))
+
+
+def _serve_audio_file(path: Path, range_header: str):
+    data = path.read_bytes()
+    size = len(data)
+    headers = {
+        "content-type": "audio/wav",
+        "cache-control": "private, no-store",
+        "accept-ranges": "bytes",
+    }
+    parsed = _parse_byte_range(range_header, size)
+    if parsed == "unsatisfiable":
+        return 416, {**headers, "content-range": f"bytes */{size}"}, b""
+    if parsed is None:
+        return 200, {**headers, "content-length": str(size)}, data
+    start, end = parsed
+    headers["content-length"] = str(end - start + 1)
+    headers["content-range"] = f"bytes {start}-{end}/{size}"
+    return 206, headers, data[start : end + 1]
 
 def _multipart_fields(body: bytes, content_type: str) -> tuple[bytes, dict[str, str]]:
     if "multipart/form-data" not in content_type:

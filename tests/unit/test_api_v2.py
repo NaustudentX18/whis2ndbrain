@@ -212,5 +212,227 @@ class NotesApiAndPwaTests(unittest.TestCase):
         self.assertIn(b"editModal", body)
 
 
+class TombstoneRevisionCursorRangeTests(unittest.TestCase):
+    """BP1 item 4: tombstones, revisions/If-Match, cursor pagination, byte ranges."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="whis-api4-test-"))
+        self.store = Store(self.tmp)
+        self.wav = make_test_wav()
+        self.token = "test-owner-token"
+        self.review = Review(self.store, self.token)
+        self.auth_headers = {"authorization": f"Bearer {self.token}"}
+        for i in range(3):
+            cid = f"test-note-{i}"
+            self.store.accept(cid, self.wav)
+            self.store.set_transcript(cid, f"Transcript sample number {i}", source="model")
+
+
+
+    def _req(self, method, path, body=b"", headers=None):
+        return self.review.handle(method, path, body, "", headers=headers or self.auth_headers)
+
+
+
+    def test_delete_tombstones_note_and_hides_everywhere(self):
+        # Break: DELETE leaves the note visible, playable, editable or exportable.
+        status, _, _ = self._req("DELETE", "/api/v1/notes/test-note-1")
+        self.assertEqual(status, 204)
+
+        status, _, body = self._req("GET", "/api/v1/notes")
+        data = json.loads(body.decode())
+        self.assertEqual([i["capture_id"] for i in data["items"]], ["test-note-0", "test-note-2"])
+        self.assertEqual(data["total"], 2)
+
+        # Tombstoned note is inspectable as the owner but inert.
+        status, _, body = self._req("GET", "/api/v1/notes/test-note-1")
+        self.assertEqual(status, 200)
+        self.assertIsNotNone(json.loads(body.decode())["deleted_at"])
+
+        # Idempotent at the HTTP level.
+        status, _, _ = self._req("DELETE", "/api/v1/notes/test-note-1")
+        self.assertEqual(status, 204)
+
+        self.assertEqual(self._req("GET", "/api/v1/notes/test-note-1/audio")[0], 404)
+        self.assertEqual(self._req("GET", "/n/test-note-1/audio")[0], 404)
+        self.assertEqual(self._req("GET", "/api/v1/notes/test-note-1/markdown")[0], 404)
+        patch = json.dumps({"transcript": "zombie edit"}).encode()
+        self.assertEqual(self._req("PATCH", "/api/v1/notes/test-note-1", patch)[0], 409)
+        self.assertEqual(self._req("POST", "/api/v1/notes/test-note-1/retry")[0], 409)
+
+        status, _, _ = self._req("DELETE", "/api/v1/notes/does-not-exist")
+        self.assertEqual(status, 404)
+
+
+
+    def test_restore_returns_note_and_rejects_bad_states(self):
+        # Break: restore un-deletes nothing, or accepts a non-deleted note.
+        self.assertEqual(self._req("POST", "/api/v1/notes/test-note-0/restore")[0], 409)
+        self.assertEqual(self._req("POST", "/api/v1/notes/missing/restore")[0], 404)
+        self.assertEqual(self._req("GET", "/api/v1/notes/test-note-0/restore")[0], 405)
+
+        self.assertEqual(self._req("DELETE", "/api/v1/notes/test-note-0")[0], 204)
+        self.assertEqual(self._req("POST", "/api/v1/notes/test-note-0/restore")[0], 204)
+
+        _, _, body = self._req("GET", "/api/v1/notes")
+        data = json.loads(body.decode())
+        self.assertEqual([i["capture_id"] for i in data["items"]], ["test-note-0", "test-note-1", "test-note-2"])
+        self.assertEqual(self._req("POST", "/api/v1/notes/test-note-0/restore")[0], 409)
+
+
+
+    def test_include_deleted_lists_tombstones(self):
+        # Break: include_deleted hides tombstones or accepts garbage values.
+        self._req("DELETE", "/api/v1/notes/test-note-2")
+
+        status, _, body = self._req("GET", "/api/v1/notes?include_deleted=1")
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode())
+        self.assertEqual(data["total"], 3)
+        by_id = {i["capture_id"]: i for i in data["items"]}
+        self.assertIsNotNone(by_id["test-note-2"]["deleted_at"])
+
+        self.assertEqual(self._req("GET", "/api/v1/notes?include_deleted=true")[0], 200)
+        self.assertEqual(self._req("GET", "/api/v1/notes?include_deleted=bogus")[0], 400)
+
+
+
+    def test_revision_in_payloads_and_bumped_by_patch(self):
+        # Break: revision is absent, stale, or does not move on owner edits.
+        status, headers, body = self._req("GET", "/api/v1/notes/test-note-0")
+        data = json.loads(body.decode())
+        self.assertEqual(data["revision"], 1)  # accept + model transcript
+        self.assertEqual(headers["etag"], '"rev-1"')
+
+        patch = json.dumps({"transcript": "owner edit"}).encode()
+        status, _, body = self._req("PATCH", "/api/v1/notes/test-note-0", patch)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body.decode())["revision"], 2)
+
+        _, _, body = self._req("GET", "/api/v1/notes")
+        by_id = {i["capture_id"]: i for i in json.loads(body.decode())["items"]}
+        self.assertEqual(by_id["test-note-0"]["revision"], 2)
+
+
+
+    def test_if_match_conflict_semantics(self):
+        # Break: stale If-Match overwrites a newer edit; garbage is accepted.
+        _, headers, _ = self._req("GET", "/api/v1/notes/test-note-0")
+        etag = headers["etag"]
+
+        patch = json.dumps({"transcript": "first writer"}).encode()
+        status, _, body = self._req(
+            "PATCH", "/api/v1/notes/test-note-0", patch, headers={**self.auth_headers, "if-match": etag}
+        )
+        self.assertEqual(status, 200)
+
+        stale_patch = json.dumps({"transcript": "stale writer"}).encode()
+        status, _, body = self._req(
+            "PATCH", "/api/v1/notes/test-note-0", stale_patch, headers={**self.auth_headers, "if-match": etag}
+        )
+        self.assertEqual(status, 412)
+        conflict = json.loads(body.decode())
+        self.assertEqual(conflict["current_revision"], 2)
+
+        # The stale write must not have landed.
+        self.assertEqual(self.store.get_note("test-note-0").transcript, "first writer")
+
+        self.assertEqual(
+            self._req(
+                "PATCH", "/api/v1/notes/test-note-0", stale_patch,
+                headers={**self.auth_headers, "if-match": "garbage"},
+            )[0],
+            400,
+        )
+        self.assertEqual(
+            self._req(
+                "PATCH", "/api/v1/notes/test-note-0", stale_patch,
+                headers={**self.auth_headers, "if-match": "*"},
+            )[0],
+            200,
+        )
+
+
+
+    def test_cursor_pagination_stable_under_new_inserts(self):
+        # Break: offset drift under inserts; cursor pages duplicate or miss rows.
+        _, _, body = self._req("GET", "/api/v1/notes?limit=2")
+        page1 = json.loads(body.decode())
+        self.assertEqual([i["capture_id"] for i in page1["items"]], ["test-note-0", "test-note-1"])
+        self.assertEqual(page1["next_cursor"], "test-note-1")
+
+        # An insert lands between the two pages.
+        self.store.accept("test-note-9", self.wav)
+        self.store.set_transcript("test-note-9", "late arrival", source="model")
+
+        _, _, body = self._req("GET", "/api/v1/notes?limit=2&after=test-note-1")
+        page2 = json.loads(body.decode())
+        self.assertEqual([i["capture_id"] for i in page2["items"]], ["test-note-2", "test-note-9"])
+        self.assertEqual(page2["total"], 4)
+
+        _, _, body = self._req("GET", "/api/v1/notes?limit=2&after=test-note-9")
+        page3 = json.loads(body.decode())
+        self.assertEqual(page3["items"], [])
+        self.assertIsNone(page3["next_cursor"])
+
+        self.assertEqual(self._req("GET", "/api/v1/notes?after=" + "x" * 129)[0], 400)
+
+
+
+    def test_audio_byte_range_partial_serving(self):
+        # Break: ranges return wrong slices, codes, or lose Content-Range.
+        full = self.wav
+        size = len(full)
+
+        status, headers, body = self._req("GET", "/api/v1/notes/test-note-0/audio")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["accept-ranges"], "bytes")
+        self.assertEqual(body, full)
+
+        status, headers, body = self._req(
+            "GET", "/api/v1/notes/test-note-0/audio", headers={**self.auth_headers, "range": "bytes=0-99"}
+        )
+        self.assertEqual(status, 206)
+        self.assertEqual(body, full[:100])
+        self.assertEqual(headers["content-range"], f"bytes 0-99/{size}")
+        self.assertEqual(headers["content-length"], "100")
+
+        status, _, body = self._req(
+            "GET", "/api/v1/notes/test-note-0/audio", headers={**self.auth_headers, "range": f"bytes={size - 10}-"}
+        )
+        self.assertEqual(status, 206)
+        self.assertEqual(body, full[-10:])
+
+        status, _, body = self._req(
+            "GET", "/api/v1/notes/test-note-0/audio", headers={**self.auth_headers, "range": "bytes=-50"}
+        )
+        self.assertEqual(status, 206)
+        self.assertEqual(body, full[-50:])
+
+        status, headers, _ = self._req(
+            "GET", "/api/v1/notes/test-note-0/audio", headers={**self.auth_headers, "range": f"bytes={size}-"}
+        )
+        self.assertEqual(status, 416)
+        self.assertEqual(headers["content-range"], f"bytes */{size}")
+
+        # Malformed, inverted and multi-range are ignored: full 200 body.
+        for bad in ("bytes=5-2", "bytes=0-1,3-4", "bytes=", "chunks=0-4"):
+            with self.subTest(bad=bad):
+                status, _, body = self._req(
+                    "GET", "/api/v1/notes/test-note-0/audio", headers={**self.auth_headers, "range": bad}
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(body, full)
+
+        # The HTML-served audio route honours ranges too.
+        status, _, body = self._req(
+            "GET", "/n/test-note-0/audio", headers={**self.auth_headers, "range": "bytes=0-9"}
+        )
+        self.assertEqual(status, 206)
+        self.assertEqual(body, full[:10])
+
+
+
+
 if __name__ == "__main__":
     unittest.main()
