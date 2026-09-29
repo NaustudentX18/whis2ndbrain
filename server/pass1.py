@@ -51,6 +51,8 @@ class Note:
     category: str | None = None
     urgency: str | None = None
     actionable: bool | None = None
+    deleted_at: str | None = None
+    revision: int = 0
 
 
 class Store:
@@ -171,7 +173,7 @@ class Store:
             row = conn.execute(
                 """
                 SELECT status, transcript, transcript_source, received_at, audio_purged_at,
-                       category, urgency, actionable
+                       category, urgency, actionable, deleted_at, revision
                 FROM captures WHERE capture_id = ?
                 """,
                 (capture_id,),
@@ -189,6 +191,8 @@ class Store:
             row["category"] if "category" in keys else None,
             row["urgency"] if "urgency" in keys else None,
             bool(row["actionable"]) if "actionable" in keys and row["actionable"] is not None else None,
+            row["deleted_at"] if "deleted_at" in keys else None,
+            int(row["revision"]) if "revision" in keys and row["revision"] is not None else 0,
         )
 
     def set_transcript(self, capture_id: str, text: str, source: str) -> None:
@@ -202,7 +206,8 @@ class Store:
                 cur = conn.execute(
                     """
                     UPDATE captures
-                    SET transcript = ?, transcript_source = ?, status = ?
+                    SET transcript = ?, transcript_source = ?, status = ?,
+                        revision = revision + 1
                     WHERE capture_id = ? AND transcript_source IS NOT 'owner'
                       AND status != 'reviewed'
                     """,
@@ -219,7 +224,8 @@ class Store:
                 cur = conn.execute(
                     """
                     UPDATE captures
-                    SET transcript = ?, transcript_source = ?, status = ?
+                    SET transcript = ?, transcript_source = ?, status = ?,
+                        revision = revision + 1
                     WHERE capture_id = ?
                     """,
                     (text, source, status, capture_id),
@@ -238,7 +244,8 @@ class Store:
             conn.execute(
                 f"""
                 UPDATE captures
-                SET category = ?, urgency = ?, actionable = ?, annotation_source = ?
+                SET category = ?, urgency = ?, actionable = ?, annotation_source = ?,
+                    revision = revision + 1
                 WHERE capture_id = ? {guard}
                 """,
                 (category, urgency, 1 if actionable else 0, source, capture_id),
@@ -255,6 +262,32 @@ class Store:
                 """,
                 (capture_id,),
             )
+
+    def delete_note(self, capture_id: str) -> bool:
+        """Tombstone a note: hidden from lists, audio and rows retained.
+
+        Idempotent-ish: returns True only on the first tombstone.
+        """
+        from datetime import datetime, timezone
+
+        stamp = datetime.now(timezone.utc).strftime(STAMP)
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE captures SET deleted_at = ?, revision = revision + 1 "
+                "WHERE capture_id = ? AND deleted_at IS NULL",
+                (stamp, capture_id),
+            )
+            return cur.rowcount > 0
+
+    def restore_note(self, capture_id: str) -> bool:
+        """Clear a tombstone. Returns False when absent or not deleted."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE captures SET deleted_at = NULL, revision = revision + 1 "
+                "WHERE capture_id = ? AND deleted_at IS NOT NULL",
+                (capture_id,),
+            )
+            return cur.rowcount > 0
 
     def mark_transcribing(self, capture_id: str) -> None:
         with self._connect() as conn:
@@ -280,6 +313,9 @@ class Store:
         search: str | None = None,
         limit: int = 50,
         offset: int = 0,
+        *,
+        include_deleted: bool = False,
+        after_capture_id: str | None = None,
     ) -> list[Note]:
         clauses = []
         params = []
@@ -289,10 +325,15 @@ class Store:
         if search:
             clauses.append("transcript LIKE ?")
             params.append(f"%{search}%")
+        if not include_deleted:
+            clauses.append("deleted_at IS NULL")
+        if after_capture_id is not None:
+            clauses.append("capture_id > ?")
+            params.append(after_capture_id)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         query = f"""
             SELECT capture_id, status, transcript, transcript_source, received_at, audio_purged_at,
-                   category, urgency, actionable
+                   category, urgency, actionable, deleted_at, revision
             FROM captures
             {where}
             ORDER BY capture_id
@@ -312,11 +353,15 @@ class Store:
                 row["category"],
                 row["urgency"],
                 bool(row["actionable"]) if row["actionable"] is not None else None,
+                row["deleted_at"],
+                int(row["revision"]) if row["revision"] is not None else 0,
             )
             for row in rows
         ]
 
-    def count_notes(self, status: str | None = None, search: str | None = None) -> int:
+    def count_notes(
+        self, status: str | None = None, search: str | None = None, *, include_deleted: bool = False
+    ) -> int:
         clauses = []
         params = []
         if status:
@@ -325,6 +370,8 @@ class Store:
         if search:
             clauses.append("transcript LIKE ?")
             params.append(f"%{search}%")
+        if not include_deleted:
+            clauses.append("deleted_at IS NULL")
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         with self._connect() as conn:
             row = conn.execute(f"SELECT COUNT(*) AS c FROM captures {where}", params).fetchone()
@@ -362,6 +409,10 @@ class Store:
             conn.execute("ALTER TABLE captures ADD COLUMN annotation_source TEXT")
         if "manifest_json" not in have:
             conn.execute("ALTER TABLE captures ADD COLUMN manifest_json TEXT")
+        if "deleted_at" not in have:
+            conn.execute("ALTER TABLE captures ADD COLUMN deleted_at TEXT")
+        if "revision" not in have:
+            conn.execute("ALTER TABLE captures ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
 
     def _quarantine(self) -> None:
         orphans = self.root / "orphans"
