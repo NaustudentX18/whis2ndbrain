@@ -42,6 +42,7 @@ class Review:
         settings_store: SettingsStore | None = None,
         telemetry_store: TelemetryStore | None = None,
         sse_broker: SSEBroker | None = None,
+        jobs=None,
     ):
         if not token:
             raise ValueError("owner token is required")
@@ -51,6 +52,7 @@ class Review:
         self.settings_store = settings_store or SettingsStore(store.root)
         self.telemetry_store = telemetry_store or TelemetryStore()
         self.sse_broker = sse_broker or SSEBroker()
+        self.jobs = jobs
 
 
     def handle(self, method: str, path: str, body: bytes, cookie: str, headers=None):
@@ -116,6 +118,11 @@ class Review:
 
         if path.startswith("/api/v1/notes/"):
             subpath = path[len("/api/v1/notes/") :]
+            if subpath.endswith("/retry"):
+                cid = subpath[: -len("/retry")]
+                if method == "POST":
+                    return self._api_note_retry(cid)
+                return 405, _json(), b'{"error":"method not allowed"}'
             if "/markdown" in subpath:
                 cid = subpath.replace("/markdown", "")
                 if method == "GET":
@@ -171,6 +178,10 @@ class Review:
             text = parse_qs(body.decode("utf-8", "replace")).get("transcript", [""])[0]
             self.store.set_transcript(capture_id, text, source="owner")
             return 303, {"location": f"/n/{capture_id}?saved=1"}, b""
+        if method == "POST" and kind == "retry":
+            if self.jobs is None or not self.jobs.retry_failed(capture_id):
+                return 303, {"location": f"/n/{capture_id}?retry=rejected"}, b""
+            return 303, {"location": f"/n/{capture_id}?retry=queued"}, b""
         return 404, _html(), b"not found"
 
     def _authed(self, cookie: str) -> bool:
@@ -229,6 +240,11 @@ class Review:
             head = '<meta http-equiv="refresh" content="2">'
         elif note.status == "not_transcribed":
             status_line = "<p>Not transcribed.</p>"
+            if self.jobs is not None:
+                status_line += (
+                    f'<form method="post" action="/n/{ident}/retry">'
+                    '<button type="submit">Retry transcription</button></form>'
+                )
         hold_line = ""
         player = ""
         if note.audio_purged_at:
@@ -417,6 +433,17 @@ class Review:
         }
         return 200, _json(), json.dumps(resp).encode()
 
+    def _api_note_retry(self, capture_id: str):
+        note = self.store.get_note(capture_id)
+        if note is None:
+            return 404, _json(), b'{"error":"not found"}'
+        if self.jobs is None:
+            return 409, _json(), b'{"error":"retry unavailable"}'
+        accepted = self.jobs.retry_failed(capture_id)
+        if not accepted:
+            return 409, _json(), b'{"error":"job not retryable"}'
+        return 202, _json(), b'{"status":"queued"}'
+
     def _api_note_patch(self, capture_id: str, body: bytes, headers: dict[str, str]):
         note = self.store.get_note(capture_id)
         if note is None:
@@ -562,6 +589,8 @@ def _route(path: str) -> tuple[str | None, str]:
     rest = path[3:]
     if rest.endswith("/audio"):
         return rest[: -len("/audio")], "audio"
+    if rest.endswith("/retry"):
+        return rest[: -len("/retry")], "retry"
     return rest, "note"
 
 
@@ -657,7 +686,7 @@ def _file_field(body: bytes, content_type: str) -> bytes:
     return wav
 
 
-def create_handler(store: Store, token: str, runner=None, settings_store=None, telemetry_store=None, sse_broker=None):
+def create_handler(store: Store, token: str, runner=None, settings_store=None, telemetry_store=None, sse_broker=None, jobs=None):
     """Build the production HTTP handler without starting host maintenance or a listener."""
     from http.server import BaseHTTPRequestHandler
 
@@ -668,6 +697,7 @@ def create_handler(store: Store, token: str, runner=None, settings_store=None, t
         settings_store=settings_store,
         telemetry_store=telemetry_store,
         sse_broker=sse_broker,
+        jobs=jobs,
     )
 
     class Handler(BaseHTTPRequestHandler):
@@ -748,19 +778,9 @@ def serve(store: Store, token: str, host: str = "127.0.0.1", port: int = 8765) -
     from datetime import datetime, timezone
     from http.server import ThreadingHTTPServer
 
-    from server.pass1 import load_runner, prepare_host, purge_expired
-
-    holder: dict[str, object] = {}
-    lock = threading.Lock()
-
-    def runner(path):
-        with lock:
-            loaded = holder.get("runner")
-            if loaded is None:
-                loaded = load_runner()
-                holder["runner"] = loaded
-        return loaded(path)
-
+    from server.jobs import Jobs, run_once
+    from server.pass1 import prepare_host, purge_expired
+    from server.pipeline.transcriber import IsolatedTranscriber
     from server.settings import SettingsStore
     from server.telemetry import SSEBroker, TelemetryStore
 
@@ -768,11 +788,17 @@ def serve(store: Store, token: str, host: str = "127.0.0.1", port: int = 8765) -
     telemetry_store = TelemetryStore()
     sse_broker = SSEBroker()
 
+    jobs = Jobs(store)
+    # WB-023 lane: the model runs in a killable subprocess with a hard
+    # timeout, never inside the HTTP server process.
+    runner = IsolatedTranscriber()
+
     Handler = create_handler(
         store, token,
         settings_store=settings_store,
         telemetry_store=telemetry_store,
         sse_broker=sse_broker,
+        jobs=jobs,
     )
 
     prepare_host(store, datetime.now(timezone.utc))
@@ -786,10 +812,6 @@ def serve(store: Store, token: str, host: str = "127.0.0.1", port: int = 8765) -
                 print(f"purge failed {type(exc).__name__}", flush=True)
 
     threading.Thread(target=_sweep, daemon=True).start()
-
-    from server.jobs import Jobs, run_once
-
-    jobs = Jobs(store)
 
     def _worker() -> None:
         while True:
