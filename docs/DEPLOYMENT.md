@@ -24,7 +24,35 @@ device / phone / browser                sleeper host (omarchy)
 - **Cookies:** the session cookie is `Secure; HttpOnly; SameSite=Strict` — it only
   works over the HTTPS origin, which is the intent.
 
-## Starting the unit
+## Running the unit (supervised)
+
+The review unit runs as a hardened systemd **user** service,
+`~/.config/systemd/user/whis2ndbrain-review.service` (enabled;
+`Restart=on-failure`, `RestartSec=2`, `StartLimitIntervalSec=30`,
+`StartLimitBurst=5`; no watchdog — the app does not speak sd_notify).
+
+The service runs `python -m server` from a **pinned deploy worktree**, not the
+development checkout:
+
+```
+/home/forest/Work/projects/whis2ndbrain-main   # detached HEAD at reviewed main
+```
+
+The `.venv` (interpreter + site-packages) still comes from the dev repo via an
+absolute `ExecStart` path; only `WorkingDirectory`/`PYTHONPATH` point at the
+worktree. This keeps unreviewed branches/WIP out of production.
+
+### Deploying a new version (after a PR merges to `main`)
+
+```
+git -C /home/forest/Work/projects/whis2ndbrain-main fetch origin
+git -C /home/forest/Work/projects/whis2ndbrain-main checkout <merged-main-sha>
+systemctl --user restart whis2ndbrain-review.service
+curl -s http://127.0.0.1:8765/api/v1/health/ready   # expect 200
+```
+
+Rollback is the same procedure pinned to the previous `main` sha. The raw
+command line (if ever run by hand) is:
 
 ```
 .venv/bin/python -m server serve \
@@ -32,9 +60,6 @@ device / phone / browser                sleeper host (omarchy)
   --token-file /data/whis2ndbrain/review/token \
   --host 127.0.0.1 --port 8765
 ```
-
-(Owner decision pending: a supervised unit — systemd user service — so the
-review unit survives reboots. Until then it is started by hand.)
 
 ## Pairing a device
 
