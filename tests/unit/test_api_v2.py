@@ -106,6 +106,8 @@ class NotesApiAndPwaTests(unittest.TestCase):
         self.token = "test-owner-token"
         self.review = Review(self.store, self.token)
         self.auth_headers = {"authorization": f"Bearer {self.token}"}
+        _sid, self.csrf = self.review.auth.open_session()[:2]
+        self.sid = _sid
 
         # Seed 3 notes
         for i in range(3):
@@ -203,7 +205,7 @@ class NotesApiAndPwaTests(unittest.TestCase):
             "GET",
             "/pwa",
             b"",
-            f"whis_session={self.token}",
+            f"whis_session={self.sid}",
         )
         self.assertEqual(status, 200)
         self.assertIn(b"Whis2ndBrain Review", body)

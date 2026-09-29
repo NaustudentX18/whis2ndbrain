@@ -33,6 +33,8 @@ class ReviewTests(unittest.TestCase):
         self.store.accept("cap-1", self.body)
         self.store.set_transcript("cap-1", "<script>secret</script>", source="model")
         self.review = Review(self.store, token="owner-token")
+        _sid, self.csrf = self.review.auth.open_session()[:2]
+        self.cookie = f"whis_session={_sid}"
 
     def test_missing_token_does_not_return_the_recording_or_transcript(self):
         # Break: a tailnet visitor can read audio or speech without the owner token.
@@ -45,14 +47,14 @@ class ReviewTests(unittest.TestCase):
 
     def test_correction_replaces_the_shown_transcript_and_audio_is_the_accepted_wav(self):
         # Break: save does not stick, or playback returns a different file.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         status, _headers, audio = self.review.handle("GET", "/n/cap-1/audio", b"", cookie)
         self.assertEqual(status, 200)
         self.assertEqual(audio, self.body)
         status, _headers, _page = self.review.handle(
             "POST",
             "/n/cap-1",
-            b"transcript=owner+said+hello",
+            f"transcript=owner+said+hello&csrf={self.csrf}".encode(),
             cookie,
         )
         self.assertEqual(status, 303)
@@ -65,7 +67,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_bad_id_is_not_a_file_read(self):
         # Break: a capture id can escape the audio directory.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         for path in ("/n/..%2F..%2Fetc%2Fpasswd/audio", "/n/..%2Fsecret/audio", "/n/nope/audio"):
             status, _headers, body = self.review.handle("GET", path, b"", cookie)
             self.assertEqual(status, 404, path)
@@ -73,8 +75,8 @@ class ReviewTests(unittest.TestCase):
 
     def test_saved_correction_keeps_the_original_audio_and_says_so(self):
         # Break: a text correction replaces the recording, or the page hides that it did not.
-        cookie = "whis_session=owner-token"
-        self.review.handle("POST", "/n/cap-1", b"transcript=owner+said+hello", cookie)
+        cookie = self.cookie
+        self.review.handle("POST", "/n/cap-1", f"transcript=owner+said+hello&csrf={self.csrf}".encode(), cookie)
         shown = self.review.handle("GET", "/n/cap-1?saved=1", b"", cookie)[2]
         self.assertIn(b"Original recording", shown)
         self.assertIn(b"owner said hello", shown)
@@ -82,12 +84,14 @@ class ReviewTests(unittest.TestCase):
 
     def test_upload_adds_a_capture_and_does_not_replace_an_existing_one(self):
         # Break: a new phone upload overwrites the note already on the page.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         fresh_bytes = bytearray(wav_bytes())
         fresh_bytes[-1] ^= 1
         fresh = bytes(fresh_bytes)
         boundary = "bound"
         body = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="csrf"\r\n\r\n{self.csrf}\r\n'
             f"--{boundary}\r\n"
             'Content-Disposition: form-data; name="audio"; filename="note.wav"\r\n'
             "Content-Type: audio/wav\r\n\r\n"
@@ -111,6 +115,8 @@ class ReviewTests(unittest.TestCase):
         boundary = "bound"
         payload = (
             f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="csrf"\r\n\r\n{self.csrf}\r\n'
+            f"--{boundary}\r\n"
             'Content-Disposition: form-data; name="audio"; filename="note.wav"\r\n'
             "Content-Type: audio/wav\r\n\r\n"
         ).encode() + body + f"\r\n--{boundary}--\r\n".encode()
@@ -124,7 +130,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_upload_page_says_transcribing_until_the_runner_finishes(self):
         # Break: the note page hides that transcription is still running.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         gate = threading.Event()
 
         def block(path):
@@ -155,14 +161,14 @@ class ReviewTests(unittest.TestCase):
 
     def test_received_note_does_not_refresh(self):
         # Break: a note that is not transcribing reloads forever.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         page = self.review.handle("GET", "/n/cap-1", b"", cookie)[2]
         self.assertNotIn(b"http-equiv=\"refresh\"", page)
         self.assertNotIn(b"Transcribing.", page)
 
     def test_not_transcribed_page_says_so_and_does_not_refresh(self):
         # Break: a failed transcript is a blank page, or the page keeps reloading.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         self.store.mark_not_transcribed("cap-1")
         page = self.review.handle("GET", "/n/cap-1", b"", cookie)[2]
         self.assertIn(b"Not transcribed.", page)
@@ -170,7 +176,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_purged_note_keeps_the_correction_and_hides_the_player(self):
         # Break: the page still offers playback, or a correction POST dies after the hold ends.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         now = datetime(2026, 9, 26, 12, 0, 0, tzinfo=timezone.utc)
         with self.store._connect() as conn:
             conn.execute(
@@ -181,7 +187,7 @@ class ReviewTests(unittest.TestCase):
         page = self.review.handle("GET", "/n/cap-1", b"", cookie)[2]
         self.assertIn(b"Audio hold ended. The note is kept.", page)
         self.assertNotIn(b"<audio", page)
-        saved = self.review.handle("POST", "/n/cap-1", b"transcript=still+mine", cookie)
+        saved = self.review.handle("POST", "/n/cap-1", f"transcript=still+mine&csrf={self.csrf}".encode(), cookie)
         self.assertEqual(saved[0], 303)
         self.assertEqual(self.store.get_note("cap-1").transcript, "still mine")
         audio = self.review.handle("GET", "/n/cap-1/audio", b"", cookie)
@@ -189,7 +195,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_opening_an_old_note_does_not_purge_it(self):
         # Break: the page deletes audio on GET.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         with self.store._connect() as conn:
             conn.execute(
                 "UPDATE captures SET received_at = ? WHERE capture_id = 'cap-1'",
@@ -202,7 +208,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_missing_file_does_not_claim_the_hold_ended(self):
         # Break: a missing WAV is described as an ended hold.
-        cookie = "whis_session=owner-token"
+        cookie = self.cookie
         self.store.audio_path("cap-1").unlink()
         page = self.review.handle("GET", "/n/cap-1", b"", cookie)[2]
         self.assertNotIn(b"Audio hold ended", page)

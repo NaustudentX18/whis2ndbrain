@@ -565,7 +565,7 @@ class SpoolUploader:
 
     def __init__(
         self, spool: DeviceSpool, server_url: str, token: str, timeout: float = 5.0,
-        *, allow_insecure_loopback: bool = False,
+        *, allow_insecure_loopback: bool = False, device_id: str | None = None,
     ):
         parsed = urllib.parse.urlsplit(server_url)
         loopback = parsed.hostname in {"127.0.0.1", "::1", "localhost"}
@@ -579,6 +579,9 @@ class SpoolUploader:
         self.server_url = server_url.rstrip("/")
         self.token = token
         self.timeout = timeout
+        # Optional paired-device identity (BP1 item 2). The token alone is
+        # sufficient for auth; the id is attribution/telemetry, never trust.
+        self.device_id = device_id
 
     def upload_one(self, record: SpoolRecord) -> dict:
         wav_path = self.spool.pending_dir / f"{record.capture_id}.wav"
@@ -635,6 +638,7 @@ class SpoolUploader:
             headers={
                 "Authorization": f"Bearer {self.token}",
                 "Content-Type": content_type,
+                **({"X-Device-Id": self.device_id} if self.device_id else {}),
                 **extra_headers,
             },
         )

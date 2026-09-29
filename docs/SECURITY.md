@@ -183,22 +183,47 @@ The `.gitignore` already excludes `*.key`, `*.token`, `data/`, `*.db`, `*.wav`.
 | Scenario | Action |
 |---|---|
 | Owner token compromised | Replace token file, restart service |
-| Pi lost | Rotate token (Pi can no longer authenticate), audit recent captures |
+| Device lost | Review UI -> Devices -> Rotate (or Revoke); old token dies immediately |
+| Paired device rogue | Revoke in the review UI (/devices) or POST /api/v1/devices/<id>/revoke |
 | Drive access revoked | Revoke OAuth token in Google Account settings, delete `drive-token.json` |
 | Encryption key compromised | Rotate key, re-encrypt all audio (migration script required) |
 
 ---
 
+## Pairing, sessions, CSRF (BP1 item 2, 2026-09-29)
+
+- **Pairing flow:** the owner generates a single-use pairing code in the review UI
+  (`/devices`, or `POST /api/v1/pairing-codes`) valid for 10 minutes. The device
+  redeems it once via `POST /api/v1/pair {code, device_name}` (use
+  `scripts/pair_device.py`) and receives `device_id` + `wdev_...` token exactly
+  once. The host stores only SHA-256 digests.
+- **Device scope:** device tokens allow exactly `POST /api/v1/captures` and
+  `POST /api/v1/device/heartbeat`. Every review surface (notes, audio, SSE,
+  settings, device management) answers 403 to device credentials.
+- **Owner sessions:** login opens a server-side session; the cookie carries a
+  random session id (HttpOnly/Secure/SameSite=Strict, 24 h absolute expiry) -
+  never the owner token. `POST /logout` revokes the session.
+- **CSRF:** cookie-authenticated POSTs must echo the per-session CSRF token
+  (form field, JSON field, multipart field, or `X-CSRF-Token` header);
+  Bearer-authenticated API calls are exempt (cross-origin attackers cannot set
+  Authorization without a CORS preflight this host never approves).
+- **Rate limiting:** 8 failed logins/pair attempts in 15 minutes -> HTTP 429 with
+  `Retry-After` (global limiter; single-owner host has no per-peer address in
+  the handler). A successful login resets the counter.
+- **Comparisons:** all token/code checks are `hmac.compare_digest` on digests.
+- **Rotate/revoke:** `POST /api/v1/devices/<id>/rotate` (new token shown once,
+  `device_id` unchanged) and `/revoke` (immediate). Devices page in the UI.
+
 ## Open security tasks (pre-pilot)
 
-- [ ] Wrap HTTP server with TLS (Tailscale preferred; self-signed CA as fallback)
-- [ ] Separate device bearer token from owner token (WB-022)
+- [ ] Wrap HTTP server with TLS (Tailscale preferred; self-signed CA as fallback) - BP1 item 3
+- [x] Separate device bearer token from owner token (WB-022) - pairing lane, 2026-09-29
 - [ ] Implement `drive-auth` command and Drive backup runner
-- [ ] Implement encryption migration script for existing `.wav` → `.enc`
-- [ ] Add rate limiting on `/login` (brute-force protection)
+- [ ] Implement encryption migration script for existing `.wav` -> `.enc`
+- [x] Add rate limiting on `/login` (brute-force protection) - 2026-09-29
 - [ ] Add `Content-Security-Policy` header to review/PWA responses
-- [ ] Audit log (redacted): capture received, exported, token rotated — no transcript content in logs
+- [ ] Audit log (redacted): capture received, exported, token rotated - no transcript content in logs
 - [ ] Verify cookie `Secure` flag when running behind Tailscale (HTTPS required for Secure cookies)
-- [ ] CSRF token on state-mutating classic HTML forms (`/upload`, `/n/{id}`)
+- [x] CSRF token on state-mutating classic HTML forms (`/upload`, `/n/{id}`) - 2026-09-29
 
 > **Owner sign-off required before** enabling encryption on real audio, connecting Drive, or running a pilot with real speech data.

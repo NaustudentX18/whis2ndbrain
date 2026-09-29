@@ -75,13 +75,25 @@ class BrowserReviewTests(unittest.TestCase):
                 endpoint = f"{driver_url}/session/{session_id}"
                 origin = f"http://127.0.0.1:{httpd.server_address[1]}"
                 _json_request(endpoint + "/url", "POST", {"url": origin + "/api/v1/health/live"})
-                _json_request(endpoint + "/cookie", "POST", {"cookie": {
-                    "name": "whis_session", "value": token, "path": "/", "httpOnly": True,
-                }})
-                _json_request(endpoint + "/url", "POST", {"url": origin + "/pwa"})
 
                 def js(script: str):
                     return _json_request(endpoint + "/execute/sync", "POST", {"script": script, "args": []})["value"]
+
+                # Login through the real form (BP1 item 2): the raw owner
+                # token is no longer accepted as a cookie value.
+                _json_request(endpoint + "/url", "POST", {"url": origin + "/"})
+                _json_request(endpoint + "/execute/sync", "POST", {
+                    "script": (
+                        "const f = document.querySelector('input[name=token]');"
+                        "f.value = arguments[0]; f.form.submit();"
+                    ),
+                    "args": [token],
+                })
+                for _ in range(30):
+                    if js("return !document.querySelector('input[name=token]')"):
+                        break
+                    time.sleep(0.1)
+                _json_request(endpoint + "/url", "POST", {"url": origin + "/pwa"})
 
                 for _ in range(30):
                     if js("return document.querySelectorAll('.note-card').length") == 1:
