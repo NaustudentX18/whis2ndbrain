@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hmac
 import html
 import json
 import queue
 import sqlite3
 import threading
+import time
 import uuid
 from email import message_from_bytes
 from email.policy import default
@@ -14,6 +16,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote
 
 from contracts.schemas import CaptureManifest, Category, SchemaValidationError, Urgency
+from server.auth import SESSION_TTL_SECONDS, AuthStore, Principal
 from server.pass1 import (
     HOLD,
     MAX_WAV_BYTES,
@@ -43,6 +46,7 @@ class Review:
         telemetry_store: TelemetryStore | None = None,
         sse_broker: SSEBroker | None = None,
         jobs=None,
+        auth_store: AuthStore | None = None,
     ):
         if not token:
             raise ValueError("owner token is required")
@@ -53,6 +57,7 @@ class Review:
         self.telemetry_store = telemetry_store or TelemetryStore()
         self.sse_broker = sse_broker or SSEBroker()
         self.jobs = jobs
+        self.auth = auth_store or AuthStore(store, token)
 
 
     def handle(self, method: str, path: str, body: bytes, cookie: str, headers=None):
@@ -94,12 +99,26 @@ class Review:
 
         if method == "POST" and path == "/login":
             return self._login(body)
-        if not self._is_authorized(cookie, headers):
+        if method == "POST" and path == "/api/v1/pair":
+            return self._api_pair(body)
+
+        principal = self._principal(cookie, headers)
+        if principal is not None and principal.kind == "device":
+            # Paired devices may ingest and heartbeat - nothing else.
+            if method == "POST" and path == "/api/v1/captures":
+                return self._api_capture_upload(body, headers)
+            if method == "POST" and path == "/api/v1/device/heartbeat":
+                return self._api_device_heartbeat(body, headers)
+            return 403, _json(), b'{"error":"device credentials are ingest-only"}'
+        if principal is None:
             if path.startswith("/api/"):
                 return 401, _json(), b'{"error":"unauthorized"}'
             if method == "GET" and path in ("/", "/pwa"):
                 return 200, _html(), _page(_login_form())
             return 401, _html(), b"sign in required"
+        csrf = principal.session["csrf"] if principal.via_session else None
+        if method == "POST" and csrf is not None and not self._csrf_ok(body, headers, csrf):
+            return 400, _html(), _page("Missing or invalid CSRF token. Reload the page and retry.")
 
         if method == "GET" and path == "/pwa":
             return 200, _html(), get_pwa_html()
@@ -136,7 +155,7 @@ class Review:
                 return 405, _json(), b'{"error":"method not allowed"}'
 
         if method == "POST" and path == "/upload":
-            return self._upload(body, headers.get("content-type", ""))
+            return self._upload(body, headers.get("content-type", ""), csrf)
 
         if path == "/api/v1/settings":
             if method == "GET":
@@ -152,9 +171,41 @@ class Review:
         if method == "GET" and path == "/api/v1/events":
             return self._api_sse(headers)
 
+        if method == "GET" and path == "/api/v1/devices":
+            return self._api_devices_list()
+        if method == "POST" and path.startswith("/api/v1/devices/"):
+            subpath = path[len("/api/v1/devices/") :]
+            for suffix, action in (("/revoke", "revoke"), ("/rotate", "rotate")):
+                if subpath.endswith(suffix):
+                    return self._api_device_action(subpath[: -len(suffix)], action)
+            return 404, _json(), b'{"error":"not found"}'
+        if method == "POST" and path == "/api/v1/pairing-codes":
+            return self._api_pairing_code_create()
+
+        if method == "GET" and path == "/devices":
+            return 200, _html(), _page(self._devices_page(csrf))
+        if method == "POST" and path == "/devices/pairing-code":
+            new_code = self.auth.create_pairing_code()
+            return 200, _html(), _page(self._devices_page(csrf, new_code=new_code))
+        if method == "POST" and path.startswith("/devices/") and path.endswith("/revoke"):
+            self.auth.revoke_device(path[len("/devices/") : -len("/revoke")])
+            return 303, {"location": "/devices"}, b""
+        if method == "POST" and path.startswith("/devices/") and path.endswith("/rotate"):
+            device_id = path[len("/devices/") : -len("/rotate")]
+            token = self.auth.rotate_device(device_id)
+            if token is None:
+                return 404, _html(), _page("<p>Unknown or revoked device.</p>" + self._devices_page(csrf))
+            return 200, _html(), _page(self._devices_page(csrf, rotated=(device_id, token)))
+        if method == "POST" and path == "/logout":
+            self.auth.revoke_session(self._sid_from_cookie(cookie))
+            headers = _html()
+            headers["set-cookie"] = f"{COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
+            headers["location"] = "/"
+            return 303, headers, b""
+
 
         if method == "GET" and path == "/":
-            return 200, _html(), _page(self._list())
+            return 200, _html(), _page(self._list(csrf))
         capture_id, kind = _route(path)
         if capture_id is None:
             return 404, _html(), b"not found"
@@ -172,7 +223,7 @@ class Review:
             data = path.read_bytes()
             return 200, {"content-type": "audio/wav", "cache-control": "private, no-store"}, data
         if method == "GET" and kind == "note":
-            inner, head = self._note(capture_id, saved)
+            inner, head = self._note(capture_id, saved, csrf)
             return 200, _html(), _page(inner, head)
         if method == "POST" and kind == "note":
             text = parse_qs(body.decode("utf-8", "replace")).get("transcript", [""])[0]
@@ -184,38 +235,187 @@ class Review:
             return 303, {"location": f"/n/{capture_id}?retry=queued"}, b""
         return 404, _html(), b"not found"
 
-    def _authed(self, cookie: str) -> bool:
+    def _sid_from_cookie(self, cookie: str) -> str:
         for part in cookie.split(";"):
             name, _, value = part.strip().partition("=")
-            if name == COOKIE and value == self.token:
-                return True
-        return False
+            if name == COOKIE:
+                return value
+        return ""
 
-    def _is_authorized(self, cookie: str, headers: dict[str, str]) -> bool:
-        if self._authed(cookie):
-            return True
+    def _principal(self, cookie: str, headers: dict[str, str]) -> Principal | None:
+        """Resolve the caller: owner bearer, owner session cookie, or device.
+
+        An explicit Authorization header wins over any cookie; an invalid
+        Bearer never downgrades to cookie auth.
+        """
         auth = headers.get("authorization", "")
         if auth.startswith("Bearer "):
             token = auth[7:].strip()
-            if token == self.token:
-                return True
-        return False
+            if self.auth.owner_token_matches(token):
+                return Principal("owner_bearer")
+            device = self.auth.authenticate_device(token)
+            if device is not None:
+                return Principal("device", device=device)
+            return None
+        session = self.auth.get_session(self._sid_from_cookie(cookie))
+        if session is not None:
+            return Principal("owner_session", session=session)
+        return None
+
+    def _csrf_ok(self, body: bytes, headers: dict[str, str], csrf: str) -> bool:
+        """Cookie-authenticated POSTs must echo the session CSRF token.
+
+        Accepted from the ``x-csrf-token`` header, a JSON ``csrf`` field, or a
+        form field (urlencoded or multipart). Bearer requests are exempt: a
+        cross-origin attacker cannot set the Authorization header without a
+        CORS preflight this host never approves.
+        """
+        given = headers.get("x-csrf-token", "")
+        if not given:
+            ctype = headers.get("content-type", "")
+            if "application/json" in ctype:
+                try:
+                    data = json.loads(body.decode("utf-8"))
+                    given = data.get("csrf", "") if isinstance(data, dict) else ""
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    given = ""
+            elif "multipart/form-data" in ctype:
+                _wav, fields = _multipart_fields(body, ctype)
+                given = fields.get("csrf", "")
+            else:
+                given = parse_qs(body.decode("utf-8", "replace")).get("csrf", [""])[0]
+        return bool(given) and hmac.compare_digest(given, csrf)
 
     def _login(self, body: bytes):
+        cooldown = self.auth.limiter.cooldown_remaining()
+        if cooldown > 0:
+            headers = _html()
+            headers["retry-after"] = str(max(1, int(cooldown) + 1))
+            return 429, headers, _page(_login_form("Too many attempts. Try again shortly."))
         given = parse_qs(body.decode("utf-8", "replace")).get("token", [""])[0]
-        if given != self.token:
+        if not self.auth.owner_token_matches(given):
+            self.auth.limiter.record_failure()
             return 401, _html(), _page(_login_form("Wrong token."))
+        self.auth.limiter.record_success()
+        # The cookie carries a random session id - never the owner token.
+        sid, _csrf, _expires = self.auth.open_session()
         headers = _html()
-        headers["set-cookie"] = f"{COOKIE}={self.token}; HttpOnly; Secure; SameSite=Strict; Path=/"
+        headers["set-cookie"] = (
+            f"{COOKIE}={sid}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age={SESSION_TTL_SECONDS}"
+        )
         headers["location"] = "/"
         return 303, headers, b""
 
-    def _list(self) -> str:
+    # ── Pairing & device management ─────────────────────────────────────
+
+    def _api_pair(self, body: bytes):
+        """Redeem a pairing code for a fresh device credential (shown once)."""
+        cooldown = self.auth.limiter.cooldown_remaining()
+        if cooldown > 0:
+            headers = _json()
+            headers["retry-after"] = str(max(1, int(cooldown) + 1))
+            return 429, headers, b'{"error":"too many attempts"}'
+        try:
+            data = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self.auth.limiter.record_failure()
+            return 400, _json(), b'{"error":"invalid json"}'
+        if not isinstance(data, dict):
+            self.auth.limiter.record_failure()
+            return 400, _json(), b'{"error":"invalid body"}'
+        code = data.get("code")
+        name = data.get("device_name")
+        if not isinstance(code, str) or not code or not isinstance(name, str):
+            return 400, _json(), b'{"error":"code and device_name are required"}'
+        result = self.auth.redeem_pairing_code(code, name)
+        if result is None:
+            self.auth.limiter.record_failure()
+            return 401, _json(), b'{"error":"invalid, expired, or already used pairing code"}'
+        device_id, token = result
+        return 201, _json(), json.dumps({"device_id": device_id, "token": token}).encode()
+
+    def _api_pairing_code_create(self):
+        code, expires = self.auth.create_pairing_code()
+        return 201, _json(), json.dumps({"code": code, "expires_at": expires}).encode()
+
+    def _api_devices_list(self):
+        items = [
+            {
+                "device_id": row["device_id"],
+                "name": row["name"],
+                "created_at": row["created_at"],
+                "last_seen_at": row["last_seen_at"],
+                "rotated_at": row["rotated_at"],
+                "revoked_at": row["revoked_at"],
+            }
+            for row in self.auth.list_devices()
+        ]
+        return 200, _json(), json.dumps({"items": items}).encode()
+
+    def _api_device_action(self, device_id: str, action: str):
+        if action == "revoke":
+            if self.auth.revoke_device(device_id):
+                return 204, _json(), b""
+            return 404, _json(), b'{"error":"unknown or already revoked device"}'
+        if action == "rotate":
+            token = self.auth.rotate_device(device_id)
+            if token is None:
+                return 404, _json(), b'{"error":"unknown or revoked device"}'
+            return 200, _json(), json.dumps({"device_id": device_id, "token": token}).encode()
+        return 404, _json(), b'{"error":"not found"}'
+
+    def _devices_page(self, csrf: str | None, *, new_code=None, rotated=None) -> str:
+        esc = html.escape
+        banner = ""
+        if new_code is not None:
+            code, expires = new_code
+            stamp = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(expires))
+            banner += f"<p>Pairing code (single use, expires {esc(stamp)}): <code>{esc(code)}</code></p>"
+        if rotated is not None:
+            device_id, token = rotated
+            banner += f"<p>New token for {esc(device_id)} (copy now, shown once): <code>{esc(token)}</code></p>"
+        hidden = f'<input type="hidden" name="csrf" value="{esc(csrf)}">' if csrf else ""
+        code_form = (
+            '<form method="post" action="/devices/pairing-code">'
+            f"{hidden}<button type=\"submit\">Generate pairing code</button></form>"
+        )
+        rows = self.auth.list_devices()
+        if rows:
+            items = []
+            for row in rows:
+                state = "revoked" if row["revoked_at"] else "active"
+                ident = esc(row["device_id"], quote=True)
+                buttons = (
+                    ""
+                    if row["revoked_at"]
+                    else (
+                        f'<form method="post" action="/devices/{ident}/rotate">'
+                        f'{hidden}<button type="submit">Rotate token</button></form>'
+                        f'<form method="post" action="/devices/{ident}/revoke">'
+                        f'{hidden}<button type="submit">Revoke</button></form>'
+                    )
+                )
+                seen = esc(str(row["last_seen_at"])) if row["last_seen_at"] else "never"
+                items.append(
+                    f"<li><strong>{esc(row['name'])}</strong> ({ident}) &middot; {state}"
+                    f" &middot; last seen {seen}{buttons}</li>"
+                )
+            listing = f"<ul>{''.join(items)}</ul>"
+        else:
+            listing = "<p>No paired devices yet.</p>"
+        return f'<p><a href="/">All notes</a></p><h1>Devices</h1>{banner}{code_form}{listing}'
+
+    def _list(self, csrf: str | None = None) -> str:
         notes = self.store.list_notes()
+        hidden = (
+            f'<input type="hidden" name="csrf" value="{html.escape(csrf)}">' if csrf else ""
+        )
         upload = (
             '<form method="post" action="/upload" enctype="multipart/form-data">'
+            f"{hidden}"
             '<label>New recording <input name="audio" type="file" accept="audio/wav,.wav"></label>'
             '<button type="submit">Upload</button></form>'
+            '<p><a href="/devices">Devices</a></p>'
         )
         if not notes:
             return upload + "<p>No captures yet.</p>"
@@ -226,11 +426,14 @@ class Review:
         )
         return upload + f"<ul>{items}</ul>"
 
-    def _note(self, capture_id: str, saved: bool) -> tuple[str, str]:
+    def _note(self, capture_id: str, saved: bool, csrf: str | None = None) -> tuple[str, str]:
         note = self.store.get_note(capture_id)
         assert note is not None
         shown = html.escape(note.transcript or "", quote=True)
         ident = html.escape(capture_id, quote=True)
+        hidden = (
+            f'<input type="hidden" name="csrf" value="{html.escape(csrf)}">' if csrf else ""
+        )
         kind = "Your correction" if note.transcript_source == "owner" else "Machine transcript"
         banner = "<p>Saved. The player is still the original recording.</p>" if saved else ""
         status_line = ""
@@ -243,6 +446,7 @@ class Review:
             if self.jobs is not None:
                 status_line += (
                     f'<form method="post" action="/n/{ident}/retry">'
+                    f"{hidden}"
                     '<button type="submit">Retry transcription</button></form>'
                 )
         hold_line = ""
@@ -267,18 +471,19 @@ class Review:
             f"<p>{html.escape(kind)}</p>"
             f"<p>{shown}</p>"
             f'<form method="post" action="/n/{ident}">'
+            f"{hidden}"
             f'<textarea name="transcript" rows="8">{shown}</textarea>'
             f'<button type="submit">Save correction</button></form>'
         )
         return inner, head
 
-    def _upload(self, body: bytes, content_type: str):
+    def _upload(self, body: bytes, content_type: str, csrf: str | None = None):
         wav = _file_field(body, content_type)
         capture_id = uuid.uuid4().hex
         try:
             self.store.accept(capture_id, wav)
         except Rejected:
-            return 400, _html(), _page("<p>That file is not a WAV.</p>" + self._list())
+            return 400, _html(), _page("<p>That file is not a WAV.</p>" + self._list(csrf))
         return 303, {"location": f"/n/{capture_id}"}, b""
 
     def _api_capture_upload(self, body: bytes, headers: dict[str, str]):

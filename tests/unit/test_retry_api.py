@@ -13,7 +13,6 @@ from server.jobs import Jobs, run_once
 from server.pass1 import Store
 from server.review import Review
 
-TOKEN_COOKIE = "whis_session=test-token"
 BEARER = {"authorization": "Bearer test-token"}
 
 
@@ -43,10 +42,12 @@ class RetryTests(unittest.TestCase):
         self.store = Store(self.root)
         self.jobs = Jobs(self.store, max_attempts=2, lease_seconds=10)
         self.review = Review(self.store, token="test-token", jobs=self.jobs)
+        _sid, self.csrf = self.review.auth.open_session()[:2]
+        self.token_cookie = f"whis_session={_sid}"
 
     def _post_retry(self, capture_id: str):
         return self.review.handle(
-            "POST", f"/api/v1/notes/{capture_id}/retry", b"", TOKEN_COOKIE,
+            "POST", f"/api/v1/notes/{capture_id}/retry", b"", self.token_cookie,
             {**BEARER, "content-length": "0"},
         )
 
@@ -97,7 +98,7 @@ class RetryTests(unittest.TestCase):
         bare = Review(self.store, token="test-token")
         self.store.accept("capture-2", wav_bytes())
         status, _, _ = bare.handle(
-            "POST", "/api/v1/notes/capture-2/retry", b"", TOKEN_COOKIE,
+            "POST", "/api/v1/notes/capture-2/retry", b"", self.token_cookie,
             {**BEARER, "content-length": "0"},
         )
         self.assertEqual(status, 409)
@@ -117,8 +118,10 @@ class RetryTests(unittest.TestCase):
         self.store.accept("capture-1", wav_bytes())
         exhaust(self.jobs, "capture-1")
 
+        body = f"csrf={self.csrf}".encode()
         status, headers, _ = self.review.handle(
-            "POST", "/n/capture-1/retry", b"", TOKEN_COOKIE, {"content-length": "0"}
+            "POST", "/n/capture-1/retry", body, self.token_cookie,
+            {"content-length": str(len(body))},
         )
         self.assertEqual(status, 303)
         self.assertEqual(headers["location"], "/n/capture-1?retry=queued")
@@ -128,7 +131,7 @@ class RetryTests(unittest.TestCase):
         self.store.accept("capture-1", wav_bytes())
         exhaust(self.jobs, "capture-1")
         status, _, page = self.review.handle(
-            "GET", "/n/capture-1", b"", TOKEN_COOKIE, BEARER
+            "GET", "/n/capture-1", b"", self.token_cookie, BEARER
         )
         self.assertEqual(status, 200)
         self.assertIn(b"Retry transcription", page)
@@ -136,7 +139,7 @@ class RetryTests(unittest.TestCase):
         # A queued (not failed) note does not get the button.
         self.store.accept("capture-2", wav_bytes())
         status, _, page = self.review.handle(
-            "GET", "/n/capture-2", b"", TOKEN_COOKIE, BEARER
+            "GET", "/n/capture-2", b"", self.token_cookie, BEARER
         )
         self.assertEqual(status, 200)
         self.assertNotIn(b"Retry transcription", page)
