@@ -180,6 +180,21 @@ class AuthStore:
                 (now, _hash(sid)),
             )
 
+    def stats(self) -> dict:
+        """Count-only auth facts for the metrics endpoint. No names, no ids."""
+        with self._connect() as conn:
+            devices = conn.execute(
+                "SELECT COUNT(*) AS c FROM auth_devices WHERE revoked_at IS NULL"
+            ).fetchone()["c"]
+            revoked = conn.execute(
+                "SELECT COUNT(*) AS c FROM auth_devices WHERE revoked_at IS NOT NULL"
+            ).fetchone()["c"]
+            sessions = conn.execute(
+                "SELECT COUNT(*) AS c FROM auth_sessions WHERE revoked_at IS NULL AND expires_at > ?",
+                (time.time(),),
+            ).fetchone()["c"]
+        return {"devices_active": devices, "devices_revoked": revoked, "sessions_active": sessions}
+
     # ── pairing ────────────────────────────────────────────────────────
 
     def create_pairing_code(

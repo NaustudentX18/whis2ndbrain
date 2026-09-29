@@ -183,6 +183,8 @@ class Review:
             return self._api_device_heartbeat(body, headers)
         if method == "GET" and path == "/api/v1/events":
             return self._api_sse(headers)
+        if method == "GET" and path == "/api/v1/metrics":
+            return self._api_metrics()
 
         if method == "GET" and path == "/api/v1/devices":
             return self._api_devices_list()
@@ -849,6 +851,19 @@ class Review:
         # Publish SSE event to connected browser clients
         self.sse_broker.publish("device_heartbeat", json.dumps(snapshot.to_dict()))
         return 200, _json(), json.dumps(snapshot.to_dict()).encode()
+
+    # ── Observability ─────────────────────────────────────────────────────
+
+    def _api_metrics(self):
+        """Owner-only, count-only facts. Numbers by construction; no
+        transcripts, error text, tokens, names or ids ever enter this payload."""
+        payload: dict = {"captures": self.store.counts_by_status()}
+        if self.jobs is not None:
+            payload.update(self.jobs.snapshot())
+        else:
+            payload.update({"jobs": None, "model": None})
+        payload["auth"] = self.auth.stats()
+        return 200, _json(), json.dumps(payload).encode()
 
     # ── Server-sent events ────────────────────────────────────────────────
 
