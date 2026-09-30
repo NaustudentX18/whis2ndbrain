@@ -1,0 +1,8 @@
+{
+  "status": "placeholder-until-BP2",
+  "note": "Placeholder latency budgets. Replace with owner-agreed targets from the BP2 decision session (D17/D19). Comparison is report-only while status is placeholder-until-BP2.",
+  "transcribe_p95_s_for_1s_audio": 12.0,
+  "transcribe_p95_s_for_5s_audio": 15.0,
+  "transcribe_p95_s_for_15s_audio": 25.0,
+  "transcribe_p95_s_for_30s_audio": 40.0
+}
