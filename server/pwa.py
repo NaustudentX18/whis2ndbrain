@@ -187,6 +187,15 @@ def get_pwa_html(csrf: str | None = None) -> bytes:
       line-height: 1.4;
       white-space: pre-wrap;
     }
+    .offline-banner {
+      background: var(--surface);
+      border: 1px solid var(--warning);
+      color: var(--text);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+    }
     .empty-state {
       text-align: center;
       padding: 3rem 1rem;
@@ -270,7 +279,13 @@ def get_pwa_html(csrf: str | None = None) -> bytes:
     </div>
   </header>
 
-  <main class="container">
+  <main>
+    <div id="offlineBanner" class="offline-banner" hidden>
+      Offline — showing <span class="cache-count">0</span> cached notes from
+      <span id="cacheTime">the last successful load</span>.
+      The browser never records; capture durability is the device's job.
+      <button id="retryBtn" type="button" class="btn" style="margin-top:0.5rem;">Retry</button>
+    </div>
     <div class="controls">
       <label for="searchInput" class="visually-hidden">Search transcripts</label>
       <input type="search" id="searchInput" class="search-input" placeholder="Search transcripts...">
@@ -307,6 +322,47 @@ def get_pwa_html(csrf: str | None = None) -> bytes:
     let showTrash = false;
     let nextCursor = null;
     const csrf = '__CSRF_TOKEN__';
+    const CACHE_KEY = 'whis_notes_snapshot';  // one bounded snapshot, never audio
+
+    function cacheContext() {
+      return JSON.stringify({
+        f: activeFilter,
+        s: document.getElementById('searchInput').value.trim(),
+        t: showTrash
+      });
+    }
+
+    function saveSnapshot(items) {
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), ctx: cacheContext(), items }));
+      } catch (_) { /* storage full/blocked: the cache is optional, never load-bearing */ }
+    }
+
+    function readSnapshot() {
+      try {
+        const raw = sessionStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        const snap = JSON.parse(raw);
+        if (!snap || !Array.isArray(snap.items) || snap.items.length > 50) return null;
+        return snap;
+      } catch (_) { return null; }
+    }
+
+    function isNetworkError(err) {
+      return (!navigator.onLine) || (err instanceof TypeError);
+    }
+
+    function showOffline(snapshot) {
+      const banner = document.getElementById('offlineBanner');
+      banner.querySelector('.cache-count').textContent = snapshot ? snapshot.items.length : 0;
+      document.getElementById('cacheTime').textContent = snapshot
+        ? new Date(snapshot.ts).toLocaleTimeString() : 'the last successful load';
+      banner.hidden = false;
+    }
+
+    function hideOffline() {
+      document.getElementById('offlineBanner').hidden = true;
+    }
 
     async function fetchNotes(append) {
       const search = document.getElementById('searchInput').value.trim();
@@ -319,14 +375,29 @@ def get_pwa_html(csrf: str | None = None) -> bytes:
 
       try {
         const res = await fetch(url);
+        if (res.status === 401) { window.location.href = '/'; return; }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         nextCursor = data.next_cursor || null;
         renderNotes(data.items, append);
+        if (!append) { saveSnapshot(data.items); hideOffline(); }
       } catch (err) {
-        document.getElementById('notesContainer').innerHTML = `
-          <div class="empty-state" style="color:var(--danger)">Failed to load notes: ${err.message}</div>
-        `;
+        if (isNetworkError(err)) {
+          const snap = readSnapshot();
+          const usable = snap && snap.ctx === cacheContext() ? snap : null;
+          nextCursor = null;
+          if (usable) { renderNotes(usable.items, false); }
+          else {
+            document.getElementById('notesContainer').innerHTML =
+              '<div class="empty-state">Offline — no cached notes for this view yet.</div>';
+          }
+          showOffline(usable);
+        } else {
+          hideOffline();
+          document.getElementById('notesContainer').innerHTML = `
+            <div class="empty-state" style="color:var(--danger)">Failed to load notes: ${err.message}</div>
+          `;
+        }
       }
     }
 
@@ -509,6 +580,7 @@ def get_pwa_html(csrf: str | None = None) -> bytes:
     });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { sessionStorage.removeItem(CACHE_KEY); } catch (_) { /* best effort */ }
       try {
         await fetch('/logout', {
           method: 'POST',
@@ -518,11 +590,19 @@ def get_pwa_html(csrf: str | None = None) -> bytes:
       window.location.href = '/';
     });
 
+    document.getElementById('retryBtn').addEventListener('click', () => fetchNotes());
+    window.addEventListener('online', () => { hideOffline(); fetchNotes(); });
+
     // Initial load
     fetchNotes();
 
-    // Auto-refresh every 5s if in-flight transcribing notes exist
-    setInterval(fetchNotes, 5000);
+    // Auto-refresh every 5s, but only when the tab is visible and an
+    // in-flight transcription exists — bounded polling, no offline clobber.
+    setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (!document.querySelector('.badge-transcribing')) return;
+      fetchNotes();
+    }, 5000);
 
     // Register Service Worker
     if ('serviceWorker' in navigator) {
