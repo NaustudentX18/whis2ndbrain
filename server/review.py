@@ -237,6 +237,7 @@ class Review:
                 note is None
                 or note.audio_purged_at is not None
                 or note.deleted_at is not None
+                or audio.is_symlink()  # on-disk swap: never serve through a symlink
                 or not audio.is_file()
             ):
                 return 404, _html(), b"not found"
@@ -726,7 +727,9 @@ class Review:
         if getattr(note, "deleted_at", None) is not None:
             return 404, _json(), b'{"error":"not found"}'
         audio = self.store.audio_path(capture_id)
-        if not audio.is_file():
+        if audio.is_symlink() or not audio.is_file():
+            # On-disk swap: never serve file bytes through a symlink, matching
+            # the exporter's refusal of symlinked final paths.
             return 404, _json(), b'{"error":"not found"}'
         return _serve_audio_file(audio, headers.get("range", ""))
 
