@@ -25,7 +25,7 @@ The planned hardware is a Raspberry Pi Zero 2 W with a Whisplay display/audio HA
   <td width="33%" valign="top"><strong>03 · Make it yours</strong><br />Listen, search, correct and explicitly export a note—without overwriting your edits.</td>
 </tr></table>
 
-> **Honest status:** this repository contains host code that can accept and deduplicate WAV uploads, validate a *provisional* on-wire capture manifest against the uploaded audio bytes, queue processing, expose review routes, and produce conflict-safe Markdown. The manifest envelope is software-tested with synthetic data only; it is not a frozen cross-team contract. Its software device spool and Python-served browser shell have synthetic/local test coverage. None of this proves physical capture, real-phone usability, or an end-to-end commissioned device.
+> **Honest status:** this repository contains a **tested software prototype**: host code that accepts and deduplicates WAV uploads, validates a *provisional* on-wire capture manifest against the received bytes, pairs devices with single-use codes and scoped credentials, queues processing in an isolated and killable transcription subprocess, exposes an owner review API (byte-range audio, trash and restore, edit-conflict protection, cursor pagination), serves the chosen browser shell, reports owner-only metrics, exports deterministic conflict-safe Markdown, and rehearses manifest backup with fail-closed restore. All evidence is synthetic/local test data; the manifest envelope is not a frozen cross-team contract. A single-owner supervised deployment behind TLS exists on a private tailnet as a documented procedure — not a public or multi-user service claim. None of this proves physical capture, real-phone usability, or an end-to-end commissioned device.
 
 ## Meet Pip ✦
 
@@ -57,13 +57,35 @@ The arrows describe the **design goal**, not a proven hardware-to-vault flow. Th
 
 | Surface | Evidence and limit |
 | --- | --- |
-| Host | Python receipt/storage, idempotent ingest, job queue, review API, local transcription path and conflict-safe export. No production deployment claim. |
+| Host | Python receipt/storage, idempotent manifest-checked ingest, job queue with isolated killable transcription, pair-once device auth with owner sessions, byte-range audio API, tombstones with restore, If-Match edit conflicts, deterministic conflict-safe export, owner-only metrics, manifest backup with fail-closed restore rehearsal. Documented single-owner supervised deploy on a private tailnet; no public-service claim. |
 | Device software | Durable spool/uploader prototype; **no microphone, button, display, power or reboot-on-Pi proof**. |
-| Browser | Python-served mobile-first PWA shell in server/pwa.py; local HTTP and desktop Chromium mobile-width checks only. The web/ directory is still a scaffold; no real-phone proof. |
-| AI | faster-whisper CPU transcription path and simple lexical category/urgency suggestions. A public English sample is not a personal-note quality evaluation. |
+| Browser | Python-served mobile-first PWA shell — the chosen single browser client ([decision](docs/PWA-DECISION.md)) covering the full notes/media surface (feed, trash/restore, retry, pagination, edit conflicts, logout); desktop-Chromium end-to-end coverage. The web/ directory is still a scaffold; no real-phone proof. |
+| App | Flutter companion client wired to the real API — pairing, cursor-paginated feed, header-authenticated byte-range playback, trash and restore, retry, If-Match conflict UX; CI builds a debug APK. No real-phone qualification. |
+| AI | faster-whisper CPU transcription in an isolated subprocess (hard timeout, memory cap, honest failure states, manual retry) plus simple lexical category/urgency suggestions that remain a labelled stub. A public English sample is not a personal-note quality evaluation. |
 | Hardware & enclosure | Uncommissioned and unmeasured. No battery-life, fit, release or certification claim. |
 
 The public [roadmap](docs/ROADMAP.md) remains **0 of 8 evidence-gated milestones accepted**. Code presence is not gate acceptance; the owner's private task board is the detailed source of truth.
+
+## Known limitations
+
+- **Evidence is synthetic.** Tests, rehearsals and deployment checks run on synthetic
+  audio and disposable data; no real-voice corpus exists in this repository, and none
+  will until consent and retention decisions are made.
+- **No commissioned device.** Microphone, button, display, power and reboot behaviour
+  on the intended Pi Zero 2 W hardware are unproven; the recorder has not been built.
+- **No real-phone qualification.** Neither the browser shell nor the debug APK has been
+  exercised on the owner's actual phone.
+- **Single-user by design.** One owner, one device fleet, private network; no
+  multi-user tenancy, scaling or availability claims.
+- **Bounded retention.** The host holds audio for 168 hours by default; "original kept
+  safe" is not indefinite storage.
+- **Suggestions are stubs.** Category/urgency suggestions are simple lexical
+  heuristics, clearly labelled; they will misclassify.
+- **Unmeasured performance.** Latency, storage and battery budgets are not yet
+  measured against targets; the metrics endpoint reports facts, not verdicts.
+- **Independent review pending.** Adversarial campaigns, a security/privacy review by
+  a reviewer independent of the implementer, and a seven-day real-use pilot remain
+  open roadmap gates.
 
 ## Explore the repository
 
@@ -73,7 +95,7 @@ The public [roadmap](docs/ROADMAP.md) remains **0 of 8 evidence-gated milestones
 | [Brand](brand/README.md) · [Design](DESIGN.md) | Original identity, Pip artwork and design/accessibility direction. |
 | [Device](device/) · [Contracts](contracts/) | Software spool and in-progress shared data contracts; no physical runtime. |
 | [Server](server/) | Host receipt, processing, review, PWA shell, settings/telemetry and at-rest encryption code. |
-| [App](app/) | Flutter companion-client prototype (setup, device, notes, settings screens); no device pairing or real-phone qualification. |
+| [App](app/) | Flutter companion client wired to the real API (pairing, feed, playback, trash, settings); no real-phone qualification. |
 | [CI](.github/workflows/ci.yml) | GitHub Actions: Python unit+lint and Flutter analyze/test/debug-APK; green on the latest push. |
 | [Tests](tests/) · [Check script](scripts/check.sh) | Synthetic/unit/integration/browser checks; not hardware or real-device proof. |
 | [Docs](docs/) · [Contributing](CONTRIBUTING.md) | Product, privacy, roadmap and safe contribution guidance. |
