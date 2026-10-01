@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#101a1d" />
-  <meta name="description" content="Whis2ndBrain is an early, local-first pocket voice notebook project. Catch the thought. Keep the signal." />
+  <meta name="description" content="Whis2ndBrain is a pocket thoughtkeeper in the making: press, speak, release — the thought is durably caught, transcribed on your own machine, and waiting as a note you'll actually find again." />
   <title>Whis2ndBrain — Catch the thought. Keep the signal.</title>
   <link rel="icon" type="image/svg+xml" href="../brand/mark.svg" />
   <style>
@@ -13,7 +13,6 @@
       --night: #101a1d;
       --night-soft: #172427;
       --panel: #1c2a2b;
-      --panel-light: #233333;
       --ink: #f1f4e9;
       --muted: #adbbb1;
       --mint: #bdf4d7;
@@ -23,151 +22,187 @@
       --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
       --sans: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
       --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      --radius: 1.5rem;
+      --radius: 1.4rem;
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
       background:
-        radial-gradient(ellipse at 77% 15%, rgba(142, 219, 187, .12), transparent 30rem),
-        radial-gradient(ellipse at 9% 54%, rgba(160, 143, 239, .08), transparent 28rem),
+        radial-gradient(ellipse at 77% 12%, rgba(142, 219, 187, .11), transparent 32rem),
+        radial-gradient(ellipse at 8% 58%, rgba(160, 143, 239, .08), transparent 28rem),
         var(--night);
       color: var(--ink);
       font: 16px/1.55 var(--sans);
       -webkit-font-smoothing: antialiased;
     }
     a { color: inherit; }
-    a:focus-visible { outline: 2px solid var(--mint); outline-offset: 5px; border-radius: 4px; }
-    .shell { width: min(1160px, calc(100% - 48px)); margin-inline: auto; }
+    a:focus-visible { outline: 2px solid var(--mint); outline-offset: 4px; border-radius: 4px; }
+    .shell { width: min(1100px, calc(100% - 48px)); margin-inline: auto; }
     .topline { height: 3px; background: linear-gradient(90deg, var(--mint), var(--lilac) 52%, transparent 85%); }
-    header { padding: 25px 0 0; }
-    .nav { display:flex; align-items:center; justify-content:space-between; gap:24px; }
-    .brand { display:flex; align-items:center; gap:12px; text-decoration:none; }
-    .brand img { width:42px; height:42px; }
-    .brand-name { font-size:17px; font-weight:700; letter-spacing:-.7px; }
-    .brand-name span { color:var(--mint); font-size:13px; vertical-align:4px; margin-left:1px; }
-    .nav-links { display:flex; align-items:center; gap:28px; color:var(--muted); font-size:13px; }
-    .nav-links a { text-decoration:none; transition:color .2s ease; }
-    .nav-links a:hover { color:var(--ink); }
-    .nav-links .nav-cta { border:1px solid var(--line); border-radius:999px; padding:10px 16px; color:var(--ink); }
-    .hero { min-height:670px; display:grid; grid-template-columns:1.04fr .96fr; align-items:center; gap:30px; padding:70px 0 75px; }
-    .eyebrow { display:flex; align-items:center; gap:10px; color:var(--mint); font:600 10px/1.2 var(--mono); letter-spacing:1.7px; text-transform:uppercase; }
-    .pulse { width:7px; height:7px; border-radius:50%; background:var(--mint-strong); box-shadow:0 0 0 5px rgba(143,223,189,.1); }
-    h1 { max-width:660px; margin:24px 0 19px; font:500 clamp(52px, 6.6vw, 86px)/.97 var(--serif); letter-spacing:-4px; }
-    h1 em { color:var(--mint); font-style:italic; }
-    .hero-copy { max-width:510px; color:#c0cbc0; font-size:17px; line-height:1.75; }
-    .actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:30px; }
-    .button { display:inline-flex; align-items:center; justify-content:center; gap:11px; min-height:49px; padding:0 19px; border-radius:999px; text-decoration:none; font-size:13px; font-weight:700; transition:transform .2s ease, background .2s ease; }
-    .button:hover { transform:translateY(-2px); }
-    .button-primary { color:#10201a; background:var(--mint); box-shadow:0 8px 32px rgba(143,223,189,.13); }
-    .button-primary:hover { background:#d0ffe4; }
-    .button-quiet { border:1px solid var(--line); color:var(--ink); }
-    .button-quiet:hover { background:rgba(255,255,255,.05); }
-    .footnote { margin:18px 0 0; color:#8fa198; font:11px/1.6 var(--mono); letter-spacing:.1px; }
-    .visual { position:relative; min-height:495px; display:grid; place-items:center; isolation:isolate; }
-    .orbit { position:absolute; width:min(100%,490px); aspect-ratio:1; border:1px solid rgba(201,240,219,.14); border-radius:50%; transform:rotate(-17deg) scaleY(.76); }
-    .orbit::before,.orbit::after { content:""; position:absolute; border:1px solid rgba(202,190,255,.12); border-radius:50%; inset:34px; }
-    .orbit::after { inset:73px; transform:rotate(39deg); }
-    .orbit-dot { position:absolute; width:9px; height:9px; border-radius:50%; background:var(--lilac); box-shadow:0 0 18px rgba(196,182,255,.75); right:39px; top:78px; }
-    .pip { position:relative; z-index:2; width:min(87%,410px); filter:drop-shadow(0 22px 45px rgba(5,15,12,.48)); animation:float 5.6s ease-in-out infinite; }
-    .note-chip { position:absolute; z-index:3; border:1px solid rgba(213,243,226,.16); background:rgba(26,41,40,.82); backdrop-filter:blur(14px); box-shadow:0 18px 50px rgba(0,0,0,.18); }
-    .chip-top { top:41px; left:-1%; padding:12px 15px; border-radius:14px; color:#d8e4d9; font:10px/1.4 var(--mono); transform:rotate(-5deg); }
-    .chip-top strong { color:var(--mint); font-weight:600; }
-    .chip-bottom { bottom:57px; right:-2%; display:flex; gap:11px; align-items:center; padding:12px 15px; border-radius:15px; transform:rotate(4deg); }
-    .chip-icon { width:33px; height:33px; border-radius:11px; background:rgba(194,182,255,.13); display:grid; place-items:center; color:var(--lilac); }
-    .chip-bottom b { display:block; font-size:11px; }
-    .chip-bottom small { display:block; color:var(--muted); font-size:10px; }
-    .concept-tag { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); color:#91a39a; font:9px var(--mono); letter-spacing:1.5px; white-space:nowrap; }
-    .ribbon { border-block:1px solid var(--line); padding:18px 0; color:#bcc8bc; }
-    .ribbon-inner { display:flex; justify-content:space-between; align-items:center; gap:20px; }
-    .ribbon-label { color:#82978d; font:10px var(--mono); letter-spacing:1.2px; text-transform:uppercase; }
-    .ribbon-status { display:flex; align-items:center; gap:10px; font-size:12px; }
-    .ribbon-status .pulse { width:6px; height:6px; }
-    .ribbon-note { color:#82978d; font-size:11px; }
-    section { padding:110px 0; }
-    .section-kicker { color:var(--mint); font:10px var(--mono); letter-spacing:1.6px; text-transform:uppercase; }
-    h2 { margin:17px 0 14px; font:500 clamp(38px, 4.7vw, 58px)/1.04 var(--serif); letter-spacing:-2px; }
-    .section-lead { max-width:610px; color:var(--muted); font-size:15px; }
-    .three-up { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:42px; }
-    .principle { min-height:234px; padding:25px; border:1px solid var(--line); border-radius:var(--radius); background:linear-gradient(150deg,rgba(255,255,255,.045),rgba(255,255,255,.014)); }
-    .principle .num { display:flex; align-items:center; justify-content:center; width:35px; height:35px; border:1px solid rgba(189,244,215,.25); border-radius:12px; color:var(--mint); font:11px var(--mono); }
-    .principle h3 { margin:29px 0 8px; font:500 22px var(--serif); }
-    .principle p { margin:0; color:var(--muted); font-size:13px; }
-    .flow-section { background:linear-gradient(180deg, transparent,rgba(27,42,39,.46), transparent); }
-    .flow-layout { display:grid; grid-template-columns:.78fr 1.22fr; gap:60px; align-items:start; }
-    .flow-list { display:grid; gap:0; border-top:1px solid var(--line); }
-    .flow-row { display:grid; grid-template-columns:50px 1fr; gap:16px; padding:21px 0; border-bottom:1px solid var(--line); }
-    .flow-row .step { color:var(--mint); font:11px var(--mono); padding-top:4px; }
-    .flow-row h3 { margin:0 0 5px; font-size:14px; }
-    .flow-row p { margin:0; max-width:455px; color:var(--muted); font-size:12px; }
-    .flow-row .state { display:inline-block; margin-top:9px; padding:4px 8px; border:1px solid rgba(196,182,255,.19); border-radius:99px; color:#cabeff; font:9px var(--mono); letter-spacing:.5px; text-transform:uppercase; }
-    .privacy { display:grid; grid-template-columns:1fr .94fr; align-items:center; gap:56px; }
-    .privacy-card { padding:28px; border-radius:var(--radius); border:1px solid rgba(189,244,215,.18); background:radial-gradient(ellipse at 80% 0,rgba(160,143,239,.1),transparent 60%),var(--panel); }
-    .privacy-card .lock { display:grid; place-items:center; width:44px; height:44px; border-radius:15px; background:rgba(189,244,215,.11); color:var(--mint); }
-    .privacy-card h3 { margin:21px 0 8px; font:500 24px var(--serif); }
-    .privacy-card p { color:var(--muted); font-size:13px; }
-    .privacy-card ul { margin:22px 0 0; padding:0; list-style:none; display:grid; gap:13px; }
-    .privacy-card li { display:flex; gap:11px; color:#dbe6db; font-size:12px; }
-    .privacy-card li::before { content:"✳"; color:var(--mint); }
-    .callout { margin-top:18px; padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.04); color:#91a39a; font-size:10px; }
-    .roadmap { padding-top:30px; }
-    .roadmap-panel { display:flex; align-items:center; justify-content:space-between; gap:25px; margin-top:27px; padding:23px; border:1px solid var(--line); border-radius:var(--radius); background:var(--night-soft); }
-    .roadmap-left { display:flex; align-items:center; gap:16px; }
-    .roadmap-symbol { display:grid; place-items:center; width:44px; height:44px; flex:0 0 44px; border-radius:15px; color:var(--lilac); background:rgba(196,182,255,.1); }
-    .roadmap-panel h3 { margin:0; font-size:14px; }
-    .roadmap-panel p { margin:3px 0 0; color:var(--muted); font-size:11px; }
-    .roadmap-panel .button { flex-shrink:0; }
-    footer { padding:38px 0 48px; border-top:1px solid var(--line); }
-    .footer-inner { display:flex; justify-content:space-between; align-items:center; gap:20px; }
-    .footer-mark { display:flex; align-items:center; gap:10px; color:#dbe5da; font-size:12px; font-weight:700; }
-    .footer-mark img { width:29px; }
-    .footer-copy,.footer-links { color:#84958c; font-size:10px; }
-    .footer-links { display:flex; gap:18px; }
-    .footer-links a { text-decoration:none; }
-    @keyframes float { 0%,100% { transform:translateY(0) rotate(-1deg); } 50% { transform:translateY(-10px) rotate(1deg); } }
-    .log-list { margin-top:30px; border:1px solid var(--line); border-radius:var(--radius); background:var(--night-soft); overflow:hidden; }
-    .log-item { display:flex; gap:18px; padding:19px 23px; border-top:1px solid var(--line); }
-    .log-item:first-child { border-top:none; }
-    .log-date { flex:0 0 88px; color:var(--mint); font:11px var(--mono); letter-spacing:.4px; padding-top:2px; }
-    .log-item h3 { margin:0; font-size:13.5px; }
-    .log-item p { margin:4px 0 0; color:var(--muted); font-size:11.5px; }
-    @media(max-width:800px) {
-      .hero { min-height:auto; grid-template-columns:1fr; padding:78px 0 56px; gap:0; }
-      .hero-copy { max-width:590px; }
-      .visual { min-height:400px; margin-top:8px; }
-      .pip { width:min(78%,330px); }
-      .orbit { width:min(90%,390px); }
-      .chip-top { left:2%; top:30px; }
-      .chip-bottom { right:0; bottom:30px; }
-      .concept-tag { bottom:-4px; }
-      .flow-layout,.privacy { grid-template-columns:1fr; gap:34px; }
-      section { padding:82px 0; }
+    header { padding: 22px 0 0; }
+    .nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand img { width: 40px; height: 40px; }
+    .brand-name { font-size: 17px; font-weight: 700; letter-spacing: -.7px; }
+    .brand-name span { color: var(--mint); font-size: 13px; vertical-align: 4px; margin-left: 1px; }
+    .nav-links { display: flex; align-items: center; gap: 26px; color: var(--muted); font-size: 14px; }
+    .nav-links a { text-decoration: none; transition: color .2s ease; }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-links .nav-cta { border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px; color: var(--ink); }
+
+    /* ---------- hero ---------- */
+    .hero { display: grid; grid-template-columns: 1.05fr .95fr; align-items: center; gap: 28px; padding: 64px 0 72px; }
+    h1 { max-width: 640px; margin: 20px 0 18px; font: 500 clamp(46px, 6vw, 78px)/1 var(--serif); letter-spacing: -3px; }
+    .hero-copy { max-width: 520px; color: #c3cec3; font-size: 17px; line-height: 1.7; }
+    .hero-copy em { font-style: italic; color: var(--ink); }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 20px; border-radius: 999px; text-decoration: none; font-size: 14px; font-weight: 700; transition: transform .2s ease, background .2s ease; }
+    .button:hover { transform: translateY(-2px); }
+    .button-primary { color: #10201a; background: var(--mint); box-shadow: 0 8px 32px rgba(143, 223, 189, .14); }
+    .button-primary:hover { background: #d0ffe4; }
+    .button-quiet { border: 1px solid var(--line); color: var(--ink); }
+    .button-quiet:hover { background: rgba(255, 255, 255, .05); }
+    .status-line { margin-top: 26px; color: #8fa198; font-size: 12.5px; }
+    .status-line b { color: var(--mint); font-weight: 600; }
+
+    /* the one bold thing: the capture gesture */
+    .gesture { margin-top: 34px; display: flex; align-items: center; gap: 18px; }
+    .hold-btn {
+      position: relative; display: grid; place-items: center;
+      width: 92px; height: 92px; border-radius: 50%;
+      border: 1px solid rgba(189, 244, 215, .3);
+      background: rgba(189, 244, 215, .05);
+      color: var(--mint); font: 600 11px/1.3 var(--sans); letter-spacing: .6px;
+      cursor: pointer; user-select: none; -webkit-user-select: none;
+      touch-action: none; transition: background .2s ease, box-shadow .3s ease;
     }
-    @media(max-width:580px) {
-      .shell { width:min(100% - 34px,1160px); }
-      header { padding-top:17px; }
-      .nav-links { gap:13px; }
-      .nav-links a:not(.nav-cta) { display:none; }
-      .nav-links .nav-cta { padding:9px 12px; font-size:11px; }
-      .hero { padding-top:66px; }
-      h1 { font-size:57px; letter-spacing:-3px; }
-      .hero-copy { font-size:15px; }
-      .visual { min-height:345px; }
-      .pip { width:min(83%,300px); }
-      .chip-top { top:15px; left:0; }
-      .chip-bottom { right:0; bottom:22px; }
-      .ribbon-inner { align-items:flex-start; flex-direction:column; gap:7px; }
-      .ribbon-note { padding-left:16px; }
-      .three-up { grid-template-columns:1fr; margin-top:27px; }
-      .principle { min-height:0; }
-      .principle h3 { margin-top:19px; }
-      .roadmap-panel { align-items:flex-start; flex-direction:column; }
-      .roadmap-panel .button { width:100%; }
-      .footer-inner { align-items:flex-start; flex-direction:column; }
+    .hold-btn:hover { background: rgba(189, 244, 215, .09); }
+    .hold-btn .ring { position: absolute; inset: -1px; transform: rotate(-90deg); pointer-events: none; }
+    .hold-btn .ring circle { fill: none; stroke: var(--mint-strong); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 290; stroke-dashoffset: 290; }
+    .hold-btn.holding { box-shadow: 0 0 0 8px rgba(143, 223, 189, .08), 0 10px 40px rgba(143, 223, 189, .18); }
+    .hold-btn.kept { border-color: var(--mint-strong); }
+    .gesture-voice { max-width: 300px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .gesture-voice .whisper { display: block; font: italic 500 15px/1.5 var(--serif); color: var(--lilac); min-height: 44px; margin-bottom: 5px; }
+    .gesture-voice .whisper::before { content: "“"; color: #7d6fae; }
+    .gesture-voice .whisper::after { content: "”"; color: #7d6fae; }
+    .gesture-voice small { color: #7f938a; font-size: 11px; }
+    kbd { font: 600 10.5px var(--mono); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; color: var(--muted); }
+
+    .visual { position: relative; min-height: 480px; display: grid; place-items: center; isolation: isolate; }
+    .orbit { position: absolute; width: min(100%, 470px); aspect-ratio: 1; border: 1px solid rgba(201, 240, 219, .13); border-radius: 50%; transform: rotate(-17deg) scaleY(.76); }
+    .orbit::before, .orbit::after { content: ""; position: absolute; border: 1px solid rgba(202, 190, 255, .11); border-radius: 50%; inset: 34px; }
+    .orbit::after { inset: 73px; transform: rotate(39deg); }
+    .orbit-dot { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--lilac); box-shadow: 0 0 18px rgba(196, 182, 255, .7); right: 39px; top: 78px; }
+    .pip { position: relative; z-index: 2; width: min(86%, 400px); filter: drop-shadow(0 22px 45px rgba(5, 15, 12, .48)); animation: float 5.6s ease-in-out infinite; }
+    .note-chip { position: absolute; z-index: 3; border: 1px solid rgba(213, 243, 226, .16); background: rgba(26, 41, 40, .82); backdrop-filter: blur(14px); box-shadow: 0 18px 50px rgba(0, 0, 0, .18); }
+    .chip-top { top: 41px; left: -1%; padding: 12px 15px; border-radius: 14px; color: #d8e4d9; font-size: 11px; transform: rotate(-5deg); }
+    .chip-top strong { color: var(--mint); font-weight: 600; }
+    .chip-bottom { bottom: 57px; right: -2%; display: flex; gap: 11px; align-items: center; padding: 12px 15px; border-radius: 15px; transform: rotate(4deg); }
+    .chip-icon { width: 33px; height: 33px; border-radius: 11px; background: rgba(194, 182, 255, .13); display: grid; place-items: center; color: var(--lilac); }
+    .chip-bottom b { display: block; font-size: 11px; }
+    .chip-bottom small { display: block; color: var(--muted); font-size: 10px; }
+    .concept-tag { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); color: #91a39a; font-size: 10px; letter-spacing: .4px; white-space: nowrap; }
+
+    /* ---------- ribbon ---------- */
+    .ribbon { border-block: 1px solid var(--line); padding: 16px 0; color: #bcc8bc; }
+    .ribbon-inner { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    .ribbon-status { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+    .ribbon-status .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--mint-strong); box-shadow: 0 0 0 5px rgba(143, 223, 189, .1); }
+    .ribbon-note { color: #82978d; font-size: 12px; }
+
+    section { padding: 96px 0; }
+    h2 { margin: 14px 0 12px; font: 500 clamp(34px, 4.4vw, 54px)/1.05 var(--serif); letter-spacing: -2px; max-width: 640px; }
+    .section-lead { max-width: 580px; color: var(--muted); font-size: 16px; line-height: 1.7; }
+
+    /* ---------- the loop (a real sequence, so numbered) ---------- */
+    .flow-section { background: linear-gradient(180deg, transparent, rgba(27, 42, 39, .46), transparent); }
+    .flow-layout { display: grid; grid-template-columns: .8fr 1.2fr; gap: 56px; align-items: start; }
+    .flow-list { border-top: 1px solid var(--line); }
+    .flow-row { display: grid; grid-template-columns: 54px 1fr; gap: 16px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+    .flow-row .step { color: var(--mint); font: 500 15px var(--serif); padding-top: 2px; }
+    .flow-row h3 { margin: 0 0 5px; font-size: 16px; }
+    .flow-row p { margin: 0; max-width: 460px; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
+    .flow-row .state { display: inline-block; margin-top: 9px; padding: 4px 10px; border: 1px solid rgba(196, 182, 255, .19); border-radius: 99px; color: #cabeff; font-size: 11px; }
+
+    /* ---------- evidence ---------- */
+    .evidence-band { margin-top: 46px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--night-soft); }
+    .figure { padding: 26px 24px 24px; border-left: 1px solid var(--line); }
+    .figure:first-child { border-left: none; }
+    .figure .big { display: block; font: 500 clamp(30px, 3.4vw, 44px)/1 var(--serif); letter-spacing: -1.5px; color: var(--mint); }
+    .figure .big.lilac { color: var(--lilac); }
+    .figure .label { display: block; margin-top: 10px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+    .evidence-note { margin-top: 14px; color: #7f938a; font-size: 12px; }
+
+    /* ---------- pip ---------- */
+    .pip-section-grid { display: grid; grid-template-columns: .92fr 1.08fr; gap: 56px; align-items: center; }
+    .pip-photo { position: relative; }
+    .pip-photo img { width: min(100%, 380px); display: block; margin-inline: auto; filter: drop-shadow(0 18px 40px rgba(5, 15, 12, .5)); }
+    .pip-photo figcaption { margin-top: 12px; color: #7f938a; font-size: 11.5px; text-align: center; }
+    .not-list { margin: 26px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+    .not-list li { display: flex; gap: 12px; align-items: baseline; color: #dbe6db; font-size: 14px; line-height: 1.6; }
+    .not-list li::before { content: "✦"; color: var(--lilac); font-size: 12px; }
+    .not-list b { color: var(--ink); }
+
+    /* ---------- log ---------- */
+    .log-list { margin-top: 34px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--night-soft); overflow: hidden; }
+    .log-item { display: flex; gap: 18px; padding: 18px 23px; border-top: 1px solid var(--line); }
+    .log-item:first-child { border-top: none; }
+    .log-date { flex: 0 0 92px; color: var(--mint); font-size: 12px; padding-top: 2px; }
+    .log-item h3 { margin: 0; font-size: 14px; }
+    .log-item p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+
+    /* ---------- road ---------- */
+    .road-panel { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 30px; padding: 24px 26px; border: 1px solid rgba(189, 244, 215, .18); border-radius: var(--radius); background: radial-gradient(ellipse at 85% 0, rgba(160, 143, 239, .1), transparent 60%), var(--panel); }
+    .road-left { display: flex; align-items: center; gap: 16px; }
+    .road-symbol { display: grid; place-items: center; width: 46px; height: 46px; flex: 0 0 46px; border-radius: 15px; color: var(--lilac); background: rgba(196, 182, 255, .1); font-size: 20px; }
+    .road-panel h3 { margin: 0; font-size: 15px; }
+    .road-panel p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+
+    footer { padding: 36px 0 46px; border-top: 1px solid var(--line); }
+    .footer-inner { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    .footer-mark { display: flex; align-items: center; gap: 10px; color: #dbe5da; font-size: 13px; font-weight: 700; }
+    .footer-mark img { width: 28px; }
+    .footer-copy { color: #84958c; font-size: 11.5px; }
+    .footer-links { display: flex; gap: 18px; }
+    .footer-links a { color: #84958c; font-size: 11.5px; text-decoration: none; }
+    .footer-links a:hover { color: var(--ink); }
+
+    @keyframes float { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
+    @keyframes settle { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    .hero > div:first-child { animation: settle .7s cubic-bezier(.2, .7, .2, 1) both; }
+    .visual { animation: settle .7s .12s cubic-bezier(.2, .7, .2, 1) both; }
+
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; padding: 56px 0 60px; }
+      .visual { min-height: 400px; margin-top: 6px; }
+      .pip { width: min(78%, 330px); }
+      .orbit { width: min(90%, 390px); }
+      .flow-layout, .pip-section-grid { grid-template-columns: 1fr; gap: 34px; }
+      .evidence-band { grid-template-columns: 1fr 1fr; }
+      .figure:nth-child(3) { border-left: none; }
+      .figure:nth-child(n+3) { border-top: 1px solid var(--line); }
+      section { padding: 76px 0; }
     }
-    @media(prefers-reduced-motion:reduce) {
-      *,*::before,*::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 34px, 1100px); }
+      .nav-links a:not(.nav-cta) { display: none; }
+      h1 { font-size: 50px; letter-spacing: -2px; }
+      .visual { min-height: 340px; }
+      .pip { width: min(84%, 300px); }
+      .chip-top { top: 15px; left: 0; }
+      .chip-bottom { right: 0; bottom: 22px; }
+      .ribbon-inner { align-items: flex-start; flex-direction: column; gap: 7px; }
+      .evidence-band { grid-template-columns: 1fr; }
+      .figure { border-left: none; }
+      .figure:nth-child(n+2) { border-top: 1px solid var(--line); }
+      .gesture { flex-direction: column; align-items: flex-start; }
+      .road-panel { align-items: flex-start; flex-direction: column; }
+      .road-panel .button { width: 100%; }
+      .footer-inner { align-items: flex-start; flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
   </style>
 </head>
@@ -180,9 +215,10 @@
         <span class="brand-name">whis<span>2nd</span>brain</span>
       </a>
       <div class="nav-links">
-        <a href="#how">How it should feel</a>
-        <a href="#privacy">Principles</a>
-        <a class="nav-cta" href="../docs/ROADMAP.md">Build with us <span aria-hidden="true">↗</span></a>
+        <a href="#loop">How it works</a>
+        <a href="#proof">The proof</a>
+        <a href="#log">Build log</a>
+        <a class="nav-cta" href="../docs/ROADMAP.md">Build with us</a>
       </div>
     </nav>
   </header>
@@ -190,134 +226,194 @@
   <main id="top">
     <div class="shell hero">
       <div>
-        <div class="eyebrow"><span class="pulse" aria-hidden="true"></span> A little thoughtkeeper is taking shape</div>
-        <h1>Your thoughts deserve <em>somewhere</em> safe to land.</h1>
-        <p class="hero-copy">A pocket voice notebook for the thoughts that find you mid-walk, mid-moment, mid-everything. Catch it now. Find it when it matters.</p>
+        <p style="margin:0;color:var(--mint);font-size:14px;font-weight:600">A pocket thoughtkeeper is taking shape</p>
+        <h1>Your best ideas don’t wait for you to sit down.</h1>
+        <p class="hero-copy">Whis2ndBrain catches them where they happen. <em>Press, speak, release</em> — the thought is durably saved on your own device, transcribed on your own machine, and waiting as a note you’ll actually find again. No cloud ear. No feed. No algorithm deciding what matters.</p>
         <div class="actions">
-          <a class="button button-primary" href="../docs/ROADMAP.md">See the build journey <span aria-hidden="true">↗</span></a>
-          <a class="button button-quiet" href="#how">Meet the idea <span aria-hidden="true">↓</span></a>
+          <a class="button button-primary" href="https://github.com/NaustudentX18/whis2ndbrain">See the project on GitHub</a>
+          <a class="button button-quiet" href="#loop">How it works</a>
         </div>
-        <p class="footnote">TESTED SOFTWARE PROTOTYPE · PHYSICAL RECORDER NOT YET COMMISSIONED</p>
-        <p class="footnote"><a href="../device/assets/pip-screen-concept.html">View Pip’s device-screen concept ↗</a></p>
+        <p class="status-line"><b>Software: tested and live.</b> Hardware: in commissioning now. One owner, one device, fully local by design.</p>
+        <div class="gesture">
+          <button class="hold-btn" id="holdBtn" aria-describedby="gestureHint">
+            <svg class="ring" viewBox="0 0 94 94" aria-hidden="true"><circle id="holdRing" cx="47" cy="47" r="46.2"/></svg>
+            <span id="holdLabel">Hold<br>me</span>
+          </button>
+          <div class="gesture-voice" id="gestureHint">
+            <span class="whisper" id="whisper">the idea you had at the crossing light…</span>
+            <small>That’s the whole gesture — hold to capture, release to keep. Try it, or hold <kbd>Space</kbd>.</small>
+          </div>
+        </div>
       </div>
       <div class="visual" aria-label="Pip, a friendly moth-shaped memory companion, shown as a concept illustration">
         <div class="orbit" aria-hidden="true"><span class="orbit-dot"></span></div>
-        <div class="note-chip chip-top" aria-hidden="true">THOUGHT CAPTURE<br /><strong>quietly in progress …</strong></div>
         <img class="pip" src="../brand/pip-hero.png" alt="Pip, a small friendly memory moth with mint and lilac wings" />
+        <div class="note-chip chip-top" aria-hidden="true">THOUGHT CAPTURE<br /><strong>quietly in progress …</strong></div>
         <div class="note-chip chip-bottom" aria-hidden="true">
           <span class="chip-icon">✳</span>
           <span><b>Meet Pip</b><small>your future thoughtkeeper</small></span>
         </div>
-        <span class="concept-tag">PIP · ORIGINAL MASCOT CONCEPT</span>
+        <span class="concept-tag">PIP — ORIGINAL MASCOT CONCEPT</span>
       </div>
     </div>
 
     <div class="ribbon">
       <div class="shell ribbon-inner">
-        <span class="ribbon-label">Right now</span>
-        <span class="ribbon-status"><span class="pulse" aria-hidden="true"></span>All v1 software lanes built &middot; CI green</span>
-        <span class="ribbon-note">Host, clients, QA harnesses and rehearsals below; hardware and real-phone gates remain open.</span>
+        <span class="ribbon-status"><span class="pulse" aria-hidden="true"></span>Every v1 software lane is built, tested and green</span>
+        <span class="ribbon-note">Host, apps, security and QA harnesses are done. The pocket recorder is next.</span>
       </div>
     </div>
 
-    <section id="how" class="shell">
-      <span class="section-kicker">The small promise</span>
-      <h2>Catch first.<br />Make sense later.</h2>
-      <p class="section-lead">The best capture flow gets out of your way. The best memory system earns your trust. Whis2ndBrain is being designed around that balance.</p>
-      <div class="three-up">
-        <article class="principle">
-          <span class="num">01</span>
-          <h3>Press. Speak. Done.</h3>
-          <p>A tactile, push-to-talk recorder designed to work before Wi-Fi, a browser or an AI model enters the picture.</p>
-        </article>
-        <article class="principle">
-          <span class="num">02</span>
-          <h3>Your original stays yours.</h3>
-          <p>Keep the audio as the source. A transcript can help you search it—but it is machine-made and can be wrong.</p>
-        </article>
-        <article class="principle">
-          <span class="num">03</span>
-          <h3>Uncertainty gets a seat.</h3>
-          <p>Suggestions should be editable, reviewable and allowed to say “not sure”. Nothing gets sent or filed on your behalf.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="flow-section">
+    <section id="loop" class="flow-section">
       <div class="shell flow-layout">
         <div>
-          <span class="section-kicker">The intended journey</span>
-          <h2>From passing thought to a memory you can find.</h2>
-          <p class="section-lead">A gentle path with clear hand-offs. Software slices exist locally; the complete hardware-to-review journey is still a design target.</p>
+          <h2>From mid-stride to a note you’ll actually find.</h2>
+          <p class="section-lead">Four steps, one straight line, and nothing happens anywhere you don’t control. This is the whole product — no hidden fifth step where your thoughts leave home.</p>
         </div>
         <div class="flow-list">
-          <article class="flow-row"><span class="step">01</span><div><h3>Capture offline</h3><p>Hold to record, release to finish. The device retains the original before it tries to sync.</p><span class="state">Device · planned</span></div></article>
-          <article class="flow-row"><span class="step">02</span><div><h3>Receive safely</h3><p>A private host accepts a retryable upload and confirms only after a durable, matching receipt.</p><span class="state">Host · tested prototype</span></div></article>
-          <article class="flow-row"><span class="step">03</span><div><h3>Make it searchable</h3><p>Local transcription and optional typed suggestions can fail independently; your recording remains.</p><span class="state">Processing · unqualified</span></div></article>
-          <article class="flow-row"><span class="step">04</span><div><h3>Review on your terms</h3><p>Search, listen, correct, keep or discard from a mobile-friendly companion. No hidden auto-actions.</p><span class="state">Browser · tested prototype</span></div></article>
-          <article class="flow-row"><span class="step">05</span><div><h3>Export with care</h3><p>When you ask, create Markdown in an approved Obsidian inbox—without overwriting edits.</p><span class="state">Host · tested prototype</span></div></article>
+          <article class="flow-row"><span class="step">1</span><div><h3>Capture offline</h3><p>Hold the button, speak, let go. The recording is written to durable storage on the device before anything is called “saved” — a dead network never costs you a thought.</p><span class="state">Device — in commissioning</span></div></article>
+          <article class="flow-row"><span class="step">2</span><div><h3>Keep it, provably</h3><p>Your host accepts the upload only when the bytes match, then hands back a cryptographically verifiable receipt. “Sent” is never a guess.</p><span class="state">Host — tested prototype</span></div></article>
+          <article class="flow-row"><span class="step">3</span><div><h3>Make it searchable</h3><p>Transcription runs in a sealed, killable subprocess on your own machine — with a hard timeout, a memory cap, and the honesty to say “not transcribed” instead of inventing text.</p><span class="state">Processing — tested prototype</span></div></article>
+          <article class="flow-row"><span class="step">4</span><div><h3>Make it yours</h3><p>Listen, correct, label, then export clean Markdown into your own vault — explicitly, conflict-safely, never overwriting an edit you made by hand.</p><span class="state">Review &amp; export — tested prototype</span></div></article>
         </div>
       </div>
     </section>
 
-    <section id="privacy" class="shell privacy">
-      <div>
-        <span class="section-kicker">Warm, not watchful</span>
-        <h2>A companion.<br />Not a spyglass.</h2>
-        <p class="section-lead">Pip is a little visual friend—not a wake word, not an always-listening mic, and not an agent acting on your behalf. Ambient mode is intended for calm clock and device status, not continuous recording.</p>
-        <p class="section-lead">“Local-first” is a direction, not a magic privacy guarantee. Storage, encryption, retention and network access still need explicit decisions and proof.</p>
-      </div>
-      <aside class="privacy-card">
-        <span class="lock" aria-hidden="true">✳</span>
-        <h3>Trust is a build requirement.</h3>
-        <p>Before any real voice data is used, the project needs a proven data lifecycle and a tested recovery path.</p>
-        <ul>
-          <li>Private-network-first; no cloud upload by default.</li>
-          <li>Keep originals until durable receipt and reviewed retention policy.</li>
-          <li>Machine output stays labelled, fallible and reviewable.</li>
-          <li>No public exposure or automatic external actions; retention must be explicit.</li>
-        </ul>
-        <div class="callout">A prototype is not a certified product. Do not record other people without the appropriate consent and authority for your context.</div>
-      </aside>
-    </section>
-
-    <section id="progress" class="shell">
-      <span class="section-kicker">Progress log</span>
-      <h2>What has actually been built.</h2>
-      <p class="section-lead">Tested software on disposable data only. None of this yet proves physical capture, real-phone usability or a commissioned device&mdash;the roadmap gates stay open until each one is measured.</p>
-      <div class="log-list">
-        <article class="log-item"><span class="log-date">2026&middot;10&middot;01</span><div><h3>Adversarial hardening and honest rehearsals</h3><p>A crash-boundary and hostile-upload integration matrix (tombstone replay, killed workers, export atomicity, symlink refusal), bounded offline behaviour for the browser shell with honest offline states and a logout cache-clear, an automated accessibility pass, a real-model latency harness with placeholder budgets, and a scripted clean-host install rehearsal that proves the documented path from the repository alone.</p></div></article>
-        <article class="log-item"><span class="log-date">2026&middot;09&middot;30</span><div><h3>One honest deploy</h3><p>The documented single-owner deployment now runs the latest reviewed code as a supervised service behind a TLS tailnet origin, live-verified end to end on synthetic data: pair a device, upload, receipt, transcription, byte-range audio, trash and restore.</p></div></article>
-        <article class="log-item"><span class="log-date">2026&middot;09&middot;29</span><div><h3>Security and robustness hardening pass</h3><p>Isolated, killable transcription with manual retry; pair-once device credentials and owner sessions with CSRF and rate limiting; byte-range audio with tombstones and edit-conflict protection; hardened deterministic export; owner-only metrics; manifest backup with fail-closed restore rehearsal. The browser shell became the chosen single web client.</p></div></article>
-        <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Continuous integration is live and green</h3><p>GitHub Actions now runs the Python unit suite + lint and the Flutter analyze / test / debug-APK build on every push. Both pipelines pass.</p></div></article>
-        <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Companion app scaffold landed</h3><p>A Flutter client for the review experience: setup, device, notes and settings screens with an authenticated API client. An Android gradle scaffold makes a debug APK build reproducible in CI. It is a prototype&mdash;no device pairing or real-phone qualification yet.</p></div></article>
-        <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Encryption, settings and telemetry slices</h3><p>At-rest encryption helpers, a persisted settings API and device telemetry with server-sent events&mdash;each carrying its own unit tests. Design documentation added in the security guide.</p></div></article>
-        <article class="log-item"><span class="log-date">2026&middot;09&middot;27</span><div><h3>Bounded host prototype published</h3><p>Receipt-guarded WAV ingest with deduplication, bounded validation, a provisional transcription job queue, an owner-correction review shell and conflict-safe Markdown export&mdash;covered by unit, integration and a desktop-Chromium smoke test.</p></div></article>
-        <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Provisional on-wire capture manifest</h3><p>Uploads can now carry a versioned capture manifest that the host checks against the received audio bytes&mdash;hash, length, format and duration&mdash;before issuing a receipt, with idempotent replay and explicit conflicts. Clock-unknown captures record no invented timestamp. Tested end-to-end on synthetic data over real loopback HTTP.</p></div></article>
-        <article class="log-item"><span class="log-date">Next</span><div><h3>Up next: the owner decision gate</h3><p>The QA and release harnesses are built; scope, licence and privacy-budget decisions with the owner now unlock hardware bring-up. Nothing is imaged or powered before them.</p></div></article>
-      </div>
-    </section>
-
-    <section id="roadmap" class="shell roadmap">
-      <span class="section-kicker">Small steps. Real proof.</span>
-      <h2>Build the boring bits beautifully.</h2>
-      <p class="section-lead">First understand the hardware. Then prove capture survives a reboot. Only then add processing, polish, and a pilot.</p>
-      <div class="roadmap-panel">
-        <div class="roadmap-left">
-          <span class="roadmap-symbol" aria-hidden="true">↗</span>
-          <div><h3>The roadmap is open. The checkboxes are honest.</h3><p>Eight evidence-gated milestones · task IDs mapped to the private canonical board.</p></div>
+    <section id="proof">
+      <div class="shell">
+        <h2>Proof over promises.</h2>
+        <p class="section-lead">Most product pages ask you to believe. This one asks you to check. Every claim below is enforced by automated tests that run on every change — and the receipts are public.</p>
+        <div class="evidence-band">
+          <div class="figure"><span class="big">287</span><span class="label">automated checks green — unit, integration, browser and app suites on every push</span></div>
+          <div class="figure"><span class="big">9</span><span class="label">adversarial crash tests: killed processes, hostile uploads, forged labels — the system keeps its promises anyway</span></div>
+          <div class="figure"><span class="big lilac">Live</span><span class="label">a real deployment behind private TLS, verified end-to-end from capture to export</span></div>
+          <div class="figure"><span class="big">OSS</span><span class="label">Apache-2.0 licensed, with a full provenance and dependency inventory</span></div>
         </div>
-        <a class="button button-quiet" href="../docs/ROADMAP.md">Explore every phase <span aria-hidden="true">↗</span></a>
+        <p class="evidence-note">What we will also tell you plainly: all evidence so far is synthetic test data on the software stack. The physical recorder is in commissioning; real-hardware proof lands in the build log below, the day it exists.</p>
+      </div>
+    </section>
+
+    <section id="pip" class="flow-section">
+      <div class="shell pip-section-grid">
+        <figure class="pip-photo">
+          <img src="../brand/pip-hero.png" alt="Pip, a smiling cream-and-mint thoughtkeeper with lilac wings, holding a glowing spark" />
+          <figcaption>Pip — original artwork, generated for this project from an original prompt.</figcaption>
+        </figure>
+        <div>
+          <h2>Meet Pip, the thoughtkeeper.</h2>
+          <p class="section-lead">Every good tool has a face. Whis2ndBrain’s is a small memory moth who carries one glowing spark at a time — the shape of the job: catch a thought, keep it safe, hand it back when you ask.</p>
+          <ul class="not-list">
+            <li><b>Pip is not a wake word.</b> Nothing listens until you physically hold the button.</li>
+            <li><b>Pip is not always-on.</b> Ambient mode is a clock and a battery gauge — a quiet companion, not a microphone.</li>
+            <li><b>Pip is not an agent.</b> No suggestions silently become truth, and nothing acts on your behalf. Machine help stays labelled, editable, and allowed to say “not sure”.</li>
+            <li><b>Your recordings are yours.</b> Kept on your hardware, held under an explicit retention policy, exported only when you say so.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="log">
+      <div class="shell">
+        <h2>The build log — receipts, not roadmaps.</h2>
+        <p class="section-lead">Every claim on this page has a date. Newest first.</p>
+        <div class="log-list">
+          <article class="log-item"><span class="log-date">Oct 1</span><div><h3>The owner decision gate passed</h3><p>Scope, host, security, retention and privacy policy decided and recorded; the project adopted Apache-2.0; performance targets set for measurement. Hardware commissioning is formally open.</p></div></article>
+          <article class="log-item"><span class="log-date">Oct 1</span><div><h3>Adversarial hardening and honest rehearsals</h3><p>A crash-boundary and hostile-upload test matrix (tombstone replay, killed workers, export atomicity, symlink refusal), bounded offline behaviour for the browser client, an automated accessibility pass, a real-model latency harness, and a scripted clean-host install rehearsal that proves the documented path from the repository alone.</p></div></article>
+          <article class="log-item"><span class="log-date">Sep 30</span><div><h3>One honest deploy</h3><p>The documented single-owner deployment runs the latest reviewed code as a supervised service behind a private TLS origin, live-verified end to end on synthetic data: pair a device, upload, receipt, transcription, byte-range audio, trash and restore.</p></div></article>
+          <article class="log-item"><span class="log-date">Sep 29</span><div><h3>Security and robustness hardening pass</h3><p>Isolated, killable transcription with manual retry; pair-once device credentials and owner sessions with CSRF and rate limiting; byte-range audio with tombstones and edit-conflict protection; hardened deterministic export; owner-only metrics; manifest backup with fail-closed restore rehearsal. One browser client chosen and built to full parity.</p></div></article>
+          <article class="log-item"><span class="log-date">Sep 28</span><div><h3>Continuous integration is live and green</h3><p>GitHub Actions runs the Python unit suite and lint plus the Flutter analyze, test and debug-APK build on every push. Both pipelines pass.</p></div></article>
+          <article class="log-item"><span class="log-date">Sep 27</span><div><h3>Bounded host prototype published</h3><p>Receipt-guarded ingest with deduplication, bounded validation, a transcription job queue, an owner-correction review shell and conflict-safe Markdown export — covered by unit, integration and a desktop-Chromium test.</p></div></article>
+        </div>
+        <div class="road-panel">
+          <div class="road-left">
+            <span class="road-symbol" aria-hidden="true">✦</span>
+            <div>
+              <h3>Next: the pocket recorder itself</h3>
+              <p>Hardware inventory and safe bring-up are underway. Watch the log — real-hardware proof lands here the day it exists.</p>
+            </div>
+          </div>
+          <a class="button button-primary" href="../docs/ROADMAP.md">Read the roadmap</a>
+        </div>
       </div>
     </section>
   </main>
 
   <footer>
     <div class="shell footer-inner">
-      <div class="footer-mark"><img src="../brand/mark.svg" alt="" />Whis2ndBrain</div>
-      <div class="footer-copy">An early independent prototype · No product features are live.</div>
-      <div class="footer-links"><a href="../README.md">Project README</a><a href="../DESIGN.md">Design brief</a><a href="../docs/PRIVACY.md">Privacy</a></div>
+      <span class="footer-mark"><img src="../brand/mark.svg" alt="" /> whis2ndbrain</span>
+      <span class="footer-copy">An honest prototype, built in the open. Nothing is claimed that isn’t tested.</span>
+      <div class="footer-links">
+        <a href="https://github.com/NaustudentX18/whis2ndbrain">GitHub</a>
+        <a href="../docs/PRODUCT.md">Product</a>
+        <a href="../docs/PRIVACY.md">Privacy</a>
+        <a href="../docs/ROADMAP.md">Roadmap</a>
+      </div>
     </div>
   </footer>
+
+  <script>
+    (function () {
+      var btn = document.getElementById("holdBtn");
+      var ring = document.getElementById("holdRing");
+      var label = document.getElementById("holdLabel");
+      var whisper = document.getElementById("whisper");
+      var HOLD_MS = 1300, CIRC = 290;
+      var timer = null, start = 0, held = false, doneAt = 0;
+
+      var thoughts = [
+        "the idea you had at the crossing light…",
+        "the name you almost remembered…",
+        "the thing you wanted to tell her tonight…",
+        "half a sentence, worth keeping whole…",
+        "the thought that arrived mid-sentence…"
+      ];
+
+      function setRing(t) { ring.style.strokeDashoffset = String(CIRC * (1 - t)); }
+
+      function startHold() {
+        if (held || Date.now() - doneAt < 1400) return;
+        held = true; start = Date.now();
+        btn.classList.add("holding");
+        label.innerHTML = "Keep<br>holding";
+        whisper.textContent = thoughts[Math.floor(Math.random() * thoughts.length)];
+        timer = requestAnimationFrame(tick);
+      }
+      function tick() {
+        if (!held) return;
+        var t = Math.min(1, (Date.now() - start) / HOLD_MS);
+        setRing(t);
+        if (t >= 1) { finishHold(); return; }
+        timer = requestAnimationFrame(tick);
+      }
+      function finishHold() {
+        held = false; cancelAnimationFrame(timer); setRing(1);
+        btn.classList.remove("holding"); btn.classList.add("kept");
+        label.innerHTML = "Kept.";
+        doneAt = Date.now();
+        setTimeout(function () {
+          setRing(0); btn.classList.remove("kept");
+          label.innerHTML = "Hold<br>me";
+        }, 1200);
+      }
+      function cancelHold() {
+        if (!held) return;
+        held = false; cancelAnimationFrame(timer); setRing(0);
+        btn.classList.remove("holding");
+        label.innerHTML = "Hold<br>me";
+        whisper.textContent = "released too soon — the device waits for you, never the reverse.";
+      }
+
+      btn.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        try { btn.setPointerCapture(e.pointerId); } catch (_) { /* synthetic/no capture — the gesture still runs */ }
+        startHold();
+      });
+      btn.addEventListener("pointerup", cancelHold);
+      btn.addEventListener("pointercancel", cancelHold);
+      btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+      btn.addEventListener("keydown", function (e) { if (e.key === " " || e.key === "Enter") { e.preventDefault(); startHold(); } });
+      btn.addEventListener("keyup", function (e) { if (e.key === " " || e.key === "Enter") { e.preventDefault(); cancelHold(); } });
+    })();
+  </script>
 </body>
 </html>

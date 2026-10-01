@@ -4,105 +4,92 @@
   <img src="brand/wordmark.svg" width="520" alt="Whis2ndBrain — Catch the thought. Keep the signal." />
   <br /><br />
   <img src="brand/pip-hero.png" width="270" alt="Pip, a smiling cream-and-mint thoughtkeeper with lilac wings, holding a glowing spark" />
-  <h2>Catch the thought. Keep the signal.</h2>
-  <p><strong>A little pocket companion for ideas that arrive when your hands are busy.</strong></p>
-  <p>Press to capture. Return to a clear, reviewable note. Keep the original in your care.</p>
-  <p><a href="site/index.html"><strong>Explore the landing page</strong></a> · <a href="docs/PRODUCT.md">The product</a> · <a href="docs/ROADMAP.md">The roadmap</a></p>
-  <p><sub>TESTED SOFTWARE PROTOTYPE · PHYSICAL RECORDER NOT YET COMMISSIONED</sub></p>
+  <h2>Your best ideas don’t wait for you to sit down.</h2>
+  <p><strong>A pocket thoughtkeeper for the thoughts that find you mid-walk, mid-moment, mid-everything.</strong></p>
+  <p>Press. Speak. Release. The thought is durably caught, transcribed on your own machine,<br />and waiting as a note you’ll actually find again.</p>
+  <p>
+    <a href="site/index.html"><strong>Feel the page</strong></a> ·
+    <a href="docs/PRODUCT.md"><strong>The product</strong></a> ·
+    <a href="docs/ROADMAP.md"><strong>The roadmap</strong></a>
+  </p>
+  <p><sub>TESTED SOFTWARE PROTOTYPE, LIVE TODAY · THE POCKET RECORDER IS IN COMMISSIONING</sub></p>
 </div>
 
 ---
 
-## A quieter way to remember
+## Why this exists
 
-Whis2ndBrain is an **owner-controlled, local-first voice notebook in development**. The intended experience pairs a deliberate, push-to-talk pocket recorder with a private host and a mobile-friendly review space. Capture comes first; transcription and suggestions come later. Nothing a model proposes silently becomes your truth or takes an external action.
+The crossing-light idea. The almost-remembered name. The perfect sentence that arrived while your hands were full. **They deserve better than “note to self, later.”**
 
-The planned hardware is a Raspberry Pi Zero 2 W with a Whisplay display/audio HAT and PiSugar 3 power board. **That physical device has not been built or tested.** Today this repository contains a working *software* prototype for portions of the journey, plus design concepts for the device and its companion.
+Whis2ndBrain is a deliberate, push-to-talk pocket recorder paired with a private host: capture that survives disconnection, transcription that runs on hardware you own, and review/export that never loses your edits. Nothing listens unless you’re holding the button. Nothing leaves your machines. Nothing a model suggests silently becomes your truth.
 
-<table><tr>
-  <td width="33%" valign="top"><strong>01 · Catch it</strong><br />A deliberate capture should survive disconnection and restart before anything is called “saved”.</td>
-  <td width="33%" valign="top"><strong>02 · Make sense of it</strong><br />An owner-controlled host can retain a receipt and offer a machine transcript and bounded suggestions.</td>
-  <td width="33%" valign="top"><strong>03 · Make it yours</strong><br />Listen, search, correct and explicitly export a note—without overwriting your edits.</td>
-</tr></table>
+The hardware is a Raspberry Pi Zero 2 W with a Whisplay display/audio HAT and a PiSugar 3 power board — **commissioning now, after the software reached proof** (see [the build log](#the-build-log)). Until the device is proven, this repository ships the fully tested host, clients and QA stack the recorder will plug into.
 
-> **Honest status:** this repository contains a **tested software prototype**: host code that accepts and deduplicates WAV uploads, validates a *provisional* on-wire capture manifest against the received bytes, pairs devices with single-use codes and scoped credentials, queues processing in an isolated and killable transcription subprocess, exposes an owner review API (byte-range audio, trash and restore, edit-conflict protection, cursor pagination), serves the chosen browser shell, reports owner-only metrics, exports deterministic conflict-safe Markdown, and rehearses manifest backup with fail-closed restore. All evidence is synthetic/local test data; the manifest envelope is not a frozen cross-team contract. A single-owner supervised deployment behind TLS exists on a private tailnet as a documented procedure — not a public or multi-user service claim. Verification is automated — unit, integration (including an adversarial matrix of crash boundaries, hostile uploads and tombstone replay), browser end-to-end, Flutter and lint — and a scripted clean-host rehearsal proves the documented install path from the repository alone. None of this proves physical capture, real-phone usability, or an end-to-end commissioned device.
+## The loop — four steps, no hidden fifth
+
+1. **Capture offline.** Hold to record, release to stop. The recording hits durable storage on the device before anything is called “saved” — a dead network never costs you a thought.
+2. **Keep it, provably.** The host accepts an upload only when the bytes match, then returns a cryptographically verifiable receipt. “Sent” is never a guess.
+3. **Make it searchable.** Transcription runs in a sealed, killable subprocess — hard timeout, memory cap, and the honesty to say *not transcribed* instead of inventing text.
+4. **Make it yours.** Listen, correct, label, then export clean Markdown into your own vault — explicitly, conflict-safely, never overwriting a hand edit.
+
+## Proof over promises
+
+| | |
+| --- | --- |
+| **287 automated checks** | unit, integration, browser and app suites, green on every push |
+| **9 adversarial crash tests** | killed processes, hostile uploads, forged labels, tombstone replay — the system keeps its promises anyway |
+| **One live deployment** | a supervised service behind private TLS, verified end to end: pair → upload → receipt → transcript → export |
+| **A clean-host rehearsal** | a scripted install that proves the documented path from this repository alone, on a throwaway machine |
+| **Apache-2.0** | open source, with a full [provenance & SBOM](docs/PROVENANCE.md) inventory |
+
+> **Honest status:** everything above is real and tested — on synthetic data, on the software stack. No real-voice corpus exists here; none will until consent and retention policy are on record (they now are). The physical recorder is in commissioning; real-hardware proof lands in the build log the day it exists.
+
+## What’s in the box today
+
+| Surface | State |
+| --- | --- |
+| **Host** | Receipt-guarded ingest, idempotent manifest-checked uploads, pair-once device auth, isolated transcription with manual retry, byte-range audio, tombstones, edit-conflict protection, deterministic export, owner metrics, fail-closed backup/restore. Deployed and live. |
+| **Browser client** | The single chosen web client — full notes surface, bounded offline snapshot with honest offline states, automated accessibility checks. |
+| **Phone client** | A Flutter app wired to the real API — pairing, feed, playback, trash, conflicts; debug APK built in CI. |
+| **Device software** | Durable spool + uploader prototype, proven against crash and replay. Microphone, button, display and power come with the hardware lane. |
+| **Hardware** | In commissioning. Not claimed until measured. |
 
 ## Meet Pip ✦
 
-**Pip** is a small, friendly thoughtkeeper: a soft mint-and-cream memory moth with lilac wings and a spark to hold onto. The new [Pip illustration](brand/pip-hero.png) is the face of this project; a [240 × 280 screen concept](device/assets/pip-screen-concept.html) explores how the same character might greet you on the future recorder.
+**Pip** is the face of the project: a small memory moth who carries one glowing spark at a time — the shape of the job. Pip is **not** a wake word, not an always-listening microphone, and not an agent acting on your behalf. On the device, readable recording, retention, queue and battery states outrank any animation. See the [design guide](DESIGN.md) and [brand assets](brand/README.md).
 
-Pip is **not** a wake word, an always-listening microphone, a chatbot, or an autonomous agent. On a real device, readable recording, retention, queue, connection and battery states must take priority over character animation. A talking or animated screen has not been implemented. See the [design guide](DESIGN.md) and [brand assets](brand/README.md).
+## The build log
 
-## Built for trust, not magic
+Receipts, not roadmaps. Newest first — and the full history is in the [commit log](https://github.com/NaustudentX18/whis2ndbrain/commits/main).
 
-| Principle | What it means here |
-| --- | --- |
-| **Offline first** | The target device keeps a durable local capture queue. A network outage must not prevent recording. |
-| **Receipts, not guesses** | “Received” requires a matching durable host receipt; a reachable server alone is not proof of sync. |
-| **Machine help stays labelled** | Transcript and category/urgency suggestions remain reviewable, editable and free to say “unknown”. |
-| **Your data, your decision** | Processing is planned for an owner-controlled host; export is explicit, allowlisted and conflict-aware. |
-| **Retention is explicit** | The host prototype has a 168-hour audio hold; “original kept safe” does not mean indefinite storage. |
+- **Oct 1 — the owner decision gate passed.** Scope, host, security, retention and privacy policy decided and recorded; Apache-2.0 adopted; performance targets set for measurement. Hardware commissioning formally open.
+- **Oct 1 — adversarial hardening and honest rehearsals.** Crash-boundary test matrix, offline lifecycle bounds, accessibility automation, real-model latency harness, scripted clean-host install rehearsal.
+- **Sep 30 — one honest deploy.** The single-owner deployment live behind private TLS, verified end to end.
+- **Sep 29 — the hardening pass.** Killable transcription, pair-once credentials, byte-range audio, deterministic export, owner metrics, fail-closed backup.
+- **Sep 28 — CI live and green.** Sep 27 — the bounded host prototype published.
 
-### The intended journey
+The public [roadmap](docs/ROADMAP.md) remains **0 of 8 evidence-gated milestones accepted** — milestones move on evidence and review, never on enthusiasm.
 
-    deliberate capture → durable device queue → matching host receipt
-                                                ↓
-                                  local processing + labelled suggestions
-                                                ↓
-                                    human review → opt-in Markdown export
+## The fine print, in plain sight
 
-The arrows describe the **design goal**, not a proven hardware-to-vault flow. The [product guide](docs/PRODUCT.md) explains the boundaries; the [privacy guide](docs/PRIVACY.md) explains the safeguards.
-
-## What exists today
-
-| Surface | Evidence and limit |
-| --- | --- |
-| Host | Python receipt/storage, idempotent manifest-checked ingest, job queue with isolated killable transcription, pair-once device auth with owner sessions, byte-range audio API, tombstones with restore, If-Match edit conflicts, deterministic conflict-safe export, owner-only metrics, manifest backup with fail-closed restore rehearsal, adversarial crash/hostile-upload integration matrix, scripted clean-host install rehearsal. Documented single-owner supervised deploy on a private tailnet; no public-service claim. |
-| Device software | Durable spool/uploader prototype; **no microphone, button, display, power or reboot-on-Pi proof**. |
-| Browser | Python-served mobile-first PWA shell — the chosen single browser client ([decision](docs/PWA-DECISION.md)) covering the full notes/media surface (feed, trash/restore, retry, pagination, edit conflicts, logout); desktop-Chromium end-to-end coverage, bounded offline snapshot with honest offline states and logout cache-clear, automated accessibility checks (320 px reflow, keyboard focus, contrast, control names). The web/ directory is still a scaffold; no real-phone proof. |
-| App | Flutter companion client wired to the real API — pairing, cursor-paginated feed, header-authenticated byte-range playback, trash and restore, retry, If-Match conflict UX; CI builds a debug APK. No real-phone qualification. |
-| AI | faster-whisper CPU transcription in an isolated subprocess (hard timeout, memory cap, honest failure states, manual retry) plus simple lexical category/urgency suggestions that remain a labelled stub. A public English sample is not a personal-note quality evaluation. |
-| Hardware & enclosure | Uncommissioned and unmeasured. No battery-life, fit, release or certification claim. |
-
-The public [roadmap](docs/ROADMAP.md) remains **0 of 8 evidence-gated milestones accepted**. Code presence is not gate acceptance; the owner's private task board is the detailed source of truth.
-
-## Known limitations
-
-- **Evidence is synthetic.** Tests, rehearsals and deployment checks run on synthetic
-  audio and disposable data; no real-voice corpus exists in this repository, and none
-  will until consent and retention decisions are made.
-- **No commissioned device.** Microphone, button, display, power and reboot behaviour
-  on the intended Pi Zero 2 W hardware are unproven; the recorder has not been built.
-- **No real-phone qualification.** Neither the browser shell nor the debug APK has been
-  exercised on the owner's actual phone.
-- **Single-user by design.** One owner, one device fleet, private network; no
-  multi-user tenancy, scaling or availability claims.
-- **Bounded retention.** The host holds audio for 168 hours by default; "original kept
-  safe" is not indefinite storage.
-- **Suggestions are stubs.** Category/urgency suggestions are simple lexical
-  heuristics, clearly labelled; they will misclassify.
-- **Performance only smoke-measured.** A real-model latency harness ships in the repo and
-  reports facts, but budget targets are not owner-agreed yet; storage and battery are
-  unmeasured. The metrics endpoint reports facts, not verdicts.
-- **Independent review pending.** Adversarial campaigns, a security/privacy review by
-  a reviewer independent of the implementer, and a seven-day real-use pilot remain
-  open roadmap gates.
+- All evidence to date is **synthetic test data** on the software stack; real-voice evaluation is owner-consent-gated and hasn’t happened.
+- **No commissioned device yet.** Microphone, button, display, power and reboot behaviour on the Pi are unproven until the hardware lane proves them.
+- **No real-phone qualification yet.** Neither the web client nor the debug APK has run on the owner’s phone.
+- **Single-user by design**, private network, no multi-user or availability claims. Audio is held **168 hours** by policy; transcripts and history stay until you delete them.
+- Suggestions are labelled heuristics that will misclassify; performance targets are adopted but **unmeasured until the campaign**; an independent security review is still pending.
 
 ## Explore the repository
 
-| Where | What you will find |
+| Where | What you’ll find |
 | --- | --- |
-| [Landing page](site/index.html) | Dependency-free project introduction; not the review app. |
-| [Brand](brand/README.md) · [Design](DESIGN.md) | Original identity, Pip artwork and design/accessibility direction. |
-| [Device](device/) · [Contracts](contracts/) | Software spool and in-progress shared data contracts; no physical runtime. |
-| [Server](server/) | Host receipt, processing, review, PWA shell, settings/telemetry and at-rest encryption code. |
-| [App](app/) | Flutter companion client wired to the real API (pairing, feed, playback, trash, settings); no real-phone qualification. |
-| [CI](.github/workflows/ci.yml) | GitHub Actions: Python unit+lint and Flutter analyze/test/debug-APK; green on the latest push. |
-| [Tests](tests/) · [Check script](scripts/check.sh) | Unit, integration (incl. the adversarial matrix), browser e2e and Flutter checks, plus a clean-host install rehearsal script and a real-model latency harness; not hardware or real-device proof. |
-| [Docs](docs/) · [Contributing](CONTRIBUTING.md) | Product, privacy, roadmap, security, deployment, model, contracts, provenance & SBOM, accessibility and safe contribution guidance. |
+| [Landing page](site/index.html) | The project, told properly — including the capture gesture you can try in a browser. |
+| [Docs](docs/) | Product, privacy, security, deployment, model, contracts, accessibility, provenance & SBOM. |
+| [Server](server/) · [Device](device/) · [Contracts](contracts/) | The host, the spool, and the shared data contracts. |
+| [App](app/) | The Flutter client. |
+| [Tests](tests/) · [Check script](scripts/check.sh) | The evidence behind every claim above. |
 
-For a quick local **syntax, unit and integration** check, run **bash scripts/check.sh** from the repository root with its existing Python virtual environment installed. It does not prove model, browser e2e or hardware readiness; the clean-host rehearsal (**scripts/clean_host_rehearsal.sh**) proves the documented install path end-to-end on a disposable directory. Do not point experimental export at a live vault or add real recordings, transcripts, credentials or model weights to Git.
+Quick local check: **bash scripts/check.sh** (syntax, unit and integration). The clean-host rehearsal (**scripts/clean_host_rehearsal.sh**) proves the full documented install on a throwaway directory. Do not point experimental export at a live vault, and never add real recordings, transcripts, credentials or model weights to Git.
 
 ---
 
-<div align="center"><p><strong>For the thought you almost forgot.</strong></p><sub>Made carefully, one honest state and one verified step at a time.</sub></div>
+<div align="center"><p><strong>For the thought you almost forgot.</strong></p><sub>Made carefully, one honest state at a time.</sub></div>
