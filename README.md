@@ -8,7 +8,7 @@
   <p><strong>A little pocket companion for ideas that arrive when your hands are busy.</strong></p>
   <p>Press to capture. Return to a clear, reviewable note. Keep the original in your care.</p>
   <p><a href="site/index.html"><strong>Explore the landing page</strong></a> · <a href="docs/PRODUCT.md">The product</a> · <a href="docs/ROADMAP.md">The roadmap</a></p>
-  <p><sub>EARLY SOFTWARE PROTOTYPE · PHYSICAL RECORDER NOT YET COMMISSIONED</sub></p>
+  <p><sub>TESTED SOFTWARE PROTOTYPE · PHYSICAL RECORDER NOT YET COMMISSIONED</sub></p>
 </div>
 
 ---
@@ -25,7 +25,7 @@ The planned hardware is a Raspberry Pi Zero 2 W with a Whisplay display/audio HA
   <td width="33%" valign="top"><strong>03 · Make it yours</strong><br />Listen, search, correct and explicitly export a note—without overwriting your edits.</td>
 </tr></table>
 
-> **Honest status:** this repository contains a **tested software prototype**: host code that accepts and deduplicates WAV uploads, validates a *provisional* on-wire capture manifest against the received bytes, pairs devices with single-use codes and scoped credentials, queues processing in an isolated and killable transcription subprocess, exposes an owner review API (byte-range audio, trash and restore, edit-conflict protection, cursor pagination), serves the chosen browser shell, reports owner-only metrics, exports deterministic conflict-safe Markdown, and rehearses manifest backup with fail-closed restore. All evidence is synthetic/local test data; the manifest envelope is not a frozen cross-team contract. A single-owner supervised deployment behind TLS exists on a private tailnet as a documented procedure — not a public or multi-user service claim. None of this proves physical capture, real-phone usability, or an end-to-end commissioned device.
+> **Honest status:** this repository contains a **tested software prototype**: host code that accepts and deduplicates WAV uploads, validates a *provisional* on-wire capture manifest against the received bytes, pairs devices with single-use codes and scoped credentials, queues processing in an isolated and killable transcription subprocess, exposes an owner review API (byte-range audio, trash and restore, edit-conflict protection, cursor pagination), serves the chosen browser shell, reports owner-only metrics, exports deterministic conflict-safe Markdown, and rehearses manifest backup with fail-closed restore. All evidence is synthetic/local test data; the manifest envelope is not a frozen cross-team contract. A single-owner supervised deployment behind TLS exists on a private tailnet as a documented procedure — not a public or multi-user service claim. Verification is automated — unit, integration (including an adversarial matrix of crash boundaries, hostile uploads and tombstone replay), browser end-to-end, Flutter and lint — and a scripted clean-host rehearsal proves the documented install path from the repository alone. None of this proves physical capture, real-phone usability, or an end-to-end commissioned device.
 
 ## Meet Pip ✦
 
@@ -57,9 +57,9 @@ The arrows describe the **design goal**, not a proven hardware-to-vault flow. Th
 
 | Surface | Evidence and limit |
 | --- | --- |
-| Host | Python receipt/storage, idempotent manifest-checked ingest, job queue with isolated killable transcription, pair-once device auth with owner sessions, byte-range audio API, tombstones with restore, If-Match edit conflicts, deterministic conflict-safe export, owner-only metrics, manifest backup with fail-closed restore rehearsal. Documented single-owner supervised deploy on a private tailnet; no public-service claim. |
+| Host | Python receipt/storage, idempotent manifest-checked ingest, job queue with isolated killable transcription, pair-once device auth with owner sessions, byte-range audio API, tombstones with restore, If-Match edit conflicts, deterministic conflict-safe export, owner-only metrics, manifest backup with fail-closed restore rehearsal, adversarial crash/hostile-upload integration matrix, scripted clean-host install rehearsal. Documented single-owner supervised deploy on a private tailnet; no public-service claim. |
 | Device software | Durable spool/uploader prototype; **no microphone, button, display, power or reboot-on-Pi proof**. |
-| Browser | Python-served mobile-first PWA shell — the chosen single browser client ([decision](docs/PWA-DECISION.md)) covering the full notes/media surface (feed, trash/restore, retry, pagination, edit conflicts, logout); desktop-Chromium end-to-end coverage. The web/ directory is still a scaffold; no real-phone proof. |
+| Browser | Python-served mobile-first PWA shell — the chosen single browser client ([decision](docs/PWA-DECISION.md)) covering the full notes/media surface (feed, trash/restore, retry, pagination, edit conflicts, logout); desktop-Chromium end-to-end coverage, bounded offline snapshot with honest offline states and logout cache-clear, automated accessibility checks (320 px reflow, keyboard focus, contrast, control names). The web/ directory is still a scaffold; no real-phone proof. |
 | App | Flutter companion client wired to the real API — pairing, cursor-paginated feed, header-authenticated byte-range playback, trash and restore, retry, If-Match conflict UX; CI builds a debug APK. No real-phone qualification. |
 | AI | faster-whisper CPU transcription in an isolated subprocess (hard timeout, memory cap, honest failure states, manual retry) plus simple lexical category/urgency suggestions that remain a labelled stub. A public English sample is not a personal-note quality evaluation. |
 | Hardware & enclosure | Uncommissioned and unmeasured. No battery-life, fit, release or certification claim. |
@@ -81,8 +81,9 @@ The public [roadmap](docs/ROADMAP.md) remains **0 of 8 evidence-gated milestones
   safe" is not indefinite storage.
 - **Suggestions are stubs.** Category/urgency suggestions are simple lexical
   heuristics, clearly labelled; they will misclassify.
-- **Unmeasured performance.** Latency, storage and battery budgets are not yet
-  measured against targets; the metrics endpoint reports facts, not verdicts.
+- **Performance only smoke-measured.** A real-model latency harness ships in the repo and
+  reports facts, but budget targets are not owner-agreed yet; storage and battery are
+  unmeasured. The metrics endpoint reports facts, not verdicts.
 - **Independent review pending.** Adversarial campaigns, a security/privacy review by
   a reviewer independent of the implementer, and a seven-day real-use pilot remain
   open roadmap gates.
@@ -97,10 +98,10 @@ The public [roadmap](docs/ROADMAP.md) remains **0 of 8 evidence-gated milestones
 | [Server](server/) | Host receipt, processing, review, PWA shell, settings/telemetry and at-rest encryption code. |
 | [App](app/) | Flutter companion client wired to the real API (pairing, feed, playback, trash, settings); no real-phone qualification. |
 | [CI](.github/workflows/ci.yml) | GitHub Actions: Python unit+lint and Flutter analyze/test/debug-APK; green on the latest push. |
-| [Tests](tests/) · [Check script](scripts/check.sh) | Synthetic/unit/integration/browser checks; not hardware or real-device proof. |
-| [Docs](docs/) · [Contributing](CONTRIBUTING.md) | Product, privacy, roadmap and safe contribution guidance. |
+| [Tests](tests/) · [Check script](scripts/check.sh) | Unit, integration (incl. the adversarial matrix), browser e2e and Flutter checks, plus a clean-host install rehearsal script and a real-model latency harness; not hardware or real-device proof. |
+| [Docs](docs/) · [Contributing](CONTRIBUTING.md) | Product, privacy, roadmap, security, deployment, model, contracts, provenance & SBOM, accessibility and safe contribution guidance. |
 
-For a quick local **syntax and unit** check, run **bash scripts/check.sh** from the repository root with its existing Python virtual environment installed. It does not prove model, browser, integration or hardware readiness. Do not point experimental export at a live vault or add real recordings, transcripts, credentials or model weights to Git.
+For a quick local **syntax, unit and integration** check, run **bash scripts/check.sh** from the repository root with its existing Python virtual environment installed. It does not prove model, browser e2e or hardware readiness; the clean-host rehearsal (**scripts/clean_host_rehearsal.sh**) proves the documented install path end-to-end on a disposable directory. Do not point experimental export at a live vault or add real recordings, transcripts, credentials or model weights to Git.
 
 ---
 

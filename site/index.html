@@ -197,7 +197,7 @@
           <a class="button button-primary" href="../docs/ROADMAP.md">See the build journey <span aria-hidden="true">↗</span></a>
           <a class="button button-quiet" href="#how">Meet the idea <span aria-hidden="true">↓</span></a>
         </div>
-        <p class="footnote">EARLY SOFTWARE PROTOTYPE · PHYSICAL RECORDER NOT YET COMMISSIONED</p>
+        <p class="footnote">TESTED SOFTWARE PROTOTYPE · PHYSICAL RECORDER NOT YET COMMISSIONED</p>
         <p class="footnote"><a href="../device/assets/pip-screen-concept.html">View Pip’s device-screen concept ↗</a></p>
       </div>
       <div class="visual" aria-label="Pip, a friendly moth-shaped memory companion, shown as a concept illustration">
@@ -215,8 +215,8 @@
     <div class="ribbon">
       <div class="shell ribbon-inner">
         <span class="ribbon-label">Right now</span>
-        <span class="ribbon-status"><span class="pulse" aria-hidden="true"></span>Software build phase &middot; CI green</span>
-        <span class="ribbon-note">Host prototype + companion app progress below; hardware and real-phone gates remain open.</span>
+        <span class="ribbon-status"><span class="pulse" aria-hidden="true"></span>All v1 software lanes built &middot; CI green</span>
+        <span class="ribbon-note">Host, clients, QA harnesses and rehearsals below; hardware and real-phone gates remain open.</span>
       </div>
     </div>
 
@@ -286,6 +286,7 @@
       <h2>What has actually been built.</h2>
       <p class="section-lead">Tested software on disposable data only. None of this yet proves physical capture, real-phone usability or a commissioned device&mdash;the roadmap gates stay open until each one is measured.</p>
       <div class="log-list">
+        <article class="log-item"><span class="log-date">2026&middot;10&middot;01</span><div><h3>Adversarial hardening and honest rehearsals</h3><p>A crash-boundary and hostile-upload integration matrix (tombstone replay, killed workers, export atomicity, symlink refusal), bounded offline behaviour for the browser shell with honest offline states and a logout cache-clear, an automated accessibility pass, a real-model latency harness with placeholder budgets, and a scripted clean-host install rehearsal that proves the documented path from the repository alone.</p></div></article>
         <article class="log-item"><span class="log-date">2026&middot;09&middot;30</span><div><h3>One honest deploy</h3><p>The documented single-owner deployment now runs the latest reviewed code as a supervised service behind a TLS tailnet origin, live-verified end to end on synthetic data: pair a device, upload, receipt, transcription, byte-range audio, trash and restore.</p></div></article>
         <article class="log-item"><span class="log-date">2026&middot;09&middot;29</span><div><h3>Security and robustness hardening pass</h3><p>Isolated, killable transcription with manual retry; pair-once device credentials and owner sessions with CSRF and rate limiting; byte-range audio with tombstones and edit-conflict protection; hardened deterministic export; owner-only metrics; manifest backup with fail-closed restore rehearsal. The browser shell became the chosen single web client.</p></div></article>
         <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Continuous integration is live and green</h3><p>GitHub Actions now runs the Python unit suite + lint and the Flutter analyze / test / debug-APK build on every push. Both pipelines pass.</p></div></article>
@@ -293,7 +294,7 @@
         <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Encryption, settings and telemetry slices</h3><p>At-rest encryption helpers, a persisted settings API and device telemetry with server-sent events&mdash;each carrying its own unit tests. Design documentation added in the security guide.</p></div></article>
         <article class="log-item"><span class="log-date">2026&middot;09&middot;27</span><div><h3>Bounded host prototype published</h3><p>Receipt-guarded WAV ingest with deduplication, bounded validation, a provisional transcription job queue, an owner-correction review shell and conflict-safe Markdown export&mdash;covered by unit, integration and a desktop-Chromium smoke test.</p></div></article>
         <article class="log-item"><span class="log-date">2026&middot;09&middot;28</span><div><h3>Provisional on-wire capture manifest</h3><p>Uploads can now carry a versioned capture manifest that the host checks against the received audio bytes&mdash;hash, length, format and duration&mdash;before issuing a receipt, with idempotent replay and explicit conflicts. Clock-unknown captures record no invented timestamp. Tested end-to-end on synthetic data over real loopback HTTP.</p></div></article>
-        <article class="log-item"><span class="log-date">Next</span><div><h3>Up next: adversarial QA and the owner decision gate</h3><p>Crash-recovery and hostile-upload campaigns, real-phone qualification, and a defined owner decision list (scope, licence, privacy budget) before any hardware is imaged or powered.</p></div></article>
+        <article class="log-item"><span class="log-date">Next</span><div><h3>Up next: the owner decision gate</h3><p>The QA and release harnesses are built; scope, licence and privacy-budget decisions with the owner now unlock hardware bring-up. Nothing is imaged or powered before them.</p></div></article>
       </div>
     </section>
 
