@@ -438,5 +438,150 @@ return (() => {
                 httpd.server_close()
 
 
+    def test_offline_lifecycle_cached_snapshot_and_logout_clears(self):
+        """B3 / WB-039 slice: bounded offline snapshot, honest states, logout clears.
+
+        CDP network emulation exempts loopback in Chromium, so "offline" is
+        produced honestly: the origin server is stopped mid-test and the
+        page's fetch fails for real (connection refused -> TypeError). The
+        last successful list renders from the bounded sessionStorage
+        snapshot with a visible Offline banner; a different view honestly
+        reports no cache; the server returns and Retry recovers; logout
+        removes the snapshot entirely.
+        """
+        with tempfile.TemporaryDirectory(prefix="whis-browser-off-") as temp:
+            store = Store(Path(temp) / "store")
+            cid = "browser-offline-001"
+            store.accept(cid, synthetic_wav())
+            store.set_transcript(cid, "Cached while online", source="model")
+            token = "synthetic-browser-token"
+
+            def make_server(port):
+                httpd = ThreadingHTTPServer(("127.0.0.1", port), create_handler(store, token, runner=None))
+                thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+                thread.start()
+                return httpd, thread
+
+            with socket.socket() as probe:
+                probe.bind(("127.0.0.1", 0))
+                fixed_port = probe.getsockname()[1]
+            httpd, thread = make_server(fixed_port)
+            driver = None
+            session_id = None
+            try:
+                with socket.socket() as probe:
+                    probe.bind(("127.0.0.1", 0))
+                    driver_port = probe.getsockname()[1]
+                driver = subprocess.Popen(
+                    ["chromedriver", f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                driver_url = f"http://127.0.0.1:{driver_port}"
+                for _ in range(40):
+                    try:
+                        _json_request(driver_url + "/status")
+                        break
+                    except (OSError, urllib.error.URLError):
+                        time.sleep(0.1)
+                else:
+                    self.fail("chromedriver did not start")
+                created = _json_request(driver_url + "/session", "POST", {
+                    "capabilities": {"alwaysMatch": {"browserName": "chrome", "goog:chromeOptions": {
+                        "binary": shutil.which("chromium"),
+                        "args": ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--window-size=390,844"],
+                    }}}
+                })
+                session_id = created["value"]["sessionId"]
+                endpoint = f"{driver_url}/session/{session_id}"
+                origin = f"http://127.0.0.1:{fixed_port}"
+
+                def js(script: str):
+                    return _json_request(endpoint + "/execute/sync", "POST", {"script": script, "args": []})["value"]
+
+                _json_request(endpoint + "/url", "POST", {"url": origin + "/"})
+                for _ in range(30):
+                    if js("return !!document.querySelector('input[name=token]')"):
+                        break
+                    time.sleep(0.1)
+                _json_request(endpoint + "/execute/sync", "POST", {
+                    "script": (
+                        "const f = document.querySelector('input[name=token]');"
+                        "f.value = arguments[0]; f.form.submit();"
+                    ),
+                    "args": [token],
+                })
+                for _ in range(30):
+                    if js("return !document.querySelector('input[name=token]')"):
+                        break
+                    time.sleep(0.1)
+                _json_request(endpoint + "/url", "POST", {"url": origin + "/pwa"})
+                for _ in range(30):
+                    if js("return document.querySelectorAll('.note-card').length") == 1:
+                        break
+                    time.sleep(0.1)
+                self.assertEqual(js("return document.querySelectorAll('.note-card').length"), 1)
+                # The successful load populated the bounded snapshot.
+                self.assertTrue(js("return !!sessionStorage.getItem('whis_notes_snapshot')"))
+                self.assertTrue(js("return document.getElementById('offlineBanner').hidden"))
+
+                # --- Origin goes away: fetch fails for real ---
+                httpd.shutdown(); thread.join(timeout=5); httpd.server_close()
+                js("document.getElementById('searchInput').dispatchEvent(new Event('input'))")
+                for _ in range(30):
+                    if not js("return document.getElementById('offlineBanner').hidden"):
+                        break
+                    time.sleep(0.1)
+                self.assertFalse(js("return document.getElementById('offlineBanner').hidden"))
+                self.assertEqual(js("return document.querySelectorAll('.note-card').length"), 1)
+                self.assertIn("Cached while online", js("return document.querySelector('.transcript-text').innerText"))
+                banner = js("return document.getElementById('offlineBanner').innerText")
+                self.assertIn("Offline", banner)
+                self.assertIn("1", banner.split("cached")[0])  # honest cached count
+
+                # --- A different view honestly reports no cache ---
+                js("document.querySelector('[data-status=transcribed]').click()")
+                for _ in range(30):
+                    if "no cached notes" in js("return document.getElementById('notesContainer').innerText"):
+                        break
+                    time.sleep(0.1)
+                self.assertIn("no cached notes", js("return document.getElementById('notesContainer').innerText"))
+
+                # --- The origin returns; Retry recovers ---
+                httpd, thread = make_server(fixed_port)
+                js("document.getElementById('retryBtn').click()")
+                for _ in range(30):
+                    if js("return document.querySelectorAll('.note-card').length") == 1:
+                        break
+                    time.sleep(0.1)
+                self.assertTrue(js("return document.getElementById('offlineBanner').hidden"))
+                self.assertEqual(js("return document.querySelectorAll('.note-card').length"), 1)
+
+                # --- Logout clears the bounded snapshot ---
+                js("document.getElementById('logoutBtn').click()")
+                for _ in range(30):
+                    if js("return !!document.querySelector('input[name=token]')"):
+                        break
+                    time.sleep(0.1)
+                self.assertTrue(js("return !!document.querySelector('input[name=token]')"))
+                self.assertFalse(js("return !!sessionStorage.getItem('whis_notes_snapshot')"))
+            finally:
+                if session_id is not None:
+                    try:
+                        _json_request(f"{driver_url}/session/{session_id}", "DELETE")
+                    except OSError:
+                        pass
+                if driver is not None:
+                    driver.terminate()
+                    try:
+                        driver.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        driver.kill()
+                        driver.wait(timeout=5)
+                httpd.shutdown()
+                thread.join(timeout=5)
+                httpd.server_close()
+
+
+
 if __name__ == "__main__":
     unittest.main()
