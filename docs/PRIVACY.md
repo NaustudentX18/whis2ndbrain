@@ -42,6 +42,20 @@ Stolen SD card or host; missing/read-only spool mount; abrupt power loss; disk f
 
 Record the owner's decisions before live data. Proposed retention numbers in research notes are candidates only; do not treat them as policy.
 
+### Decisions of record (owner session, 2026-10-01)
+
+- **Host & network:** the Omarchy sleeper hosts the review unit; the origin is
+  `https://omarchy.tail9760ad.ts.net:8765`, Let's Encrypt via Tailscale,
+  reachable only inside the owner's tailnet. Pair-once device credentials,
+  digest-only token storage, rotate/revoke — ratified as built.
+- **Retention:** original audio is held 168 hours after receipt, then purged;
+  transcripts, history and trash (tombstoned notes) remain recoverable
+  indefinitely; exports are the owner's files. These numbers are policy.
+- **Consent corpus:** real-voice evaluation uses the owner's voice only, after
+  an explicit opt-in note; no other person is recorded.
+- **Stolen-device stance:** at-rest encryption must be on and verified before
+  the first real capture is stored on the device.
+
 ## Stop conditions
 
 Stop an implementation or pilot branch if a target disk is uncertain, a battery is swollen/hot/compressed, the persistent data mount is missing, a durable receipt is uncertain, private data may be overwritten/exposed, TLS validation would be bypassed, a model/dependency license is unresolved, or one owner has a conflicting shared-file change. Continue only unrelated safe documentation/mock work within an authorized task.
