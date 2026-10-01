@@ -61,6 +61,26 @@ command line (if ever run by hand) is:
   --host 127.0.0.1 --port 8765
 ```
 
+## Clean-host rehearsal (WB-055 prep)
+
+`scripts/clean_host_rehearsal.sh` proves this documented path works from
+the repository alone on a disposable directory: it exports the committed
+tree (`git archive HEAD` — no uncommitted files), builds a fresh
+virtualenv from `requirements.txt`, runs the unit suite in that clean
+tree, starts the service exactly as above, and verifies the live surface
+with a synthetic capture (upload receipt, readback, owner metrics,
+anonymous refused). Nothing touches the development checkout, the
+production worktree, or real data; the temporary directory is removed on
+exit (pass `--keep` to inspect it).
+
+```
+bash scripts/clean_host_rehearsal.sh        # or: ... [--keep] [python]
+```
+
+Exit 0 = every documented step passed. This is the scripted form of the
+full WB-055 disaster-recovery rehearsal, which additionally exercises
+restore-from-backup on a real host.
+
 ## Pairing a device
 
 1. Owner: sign in at the HTTPS origin → `/devices` → *Generate pairing code*
