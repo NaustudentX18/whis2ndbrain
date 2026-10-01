@@ -1,6 +1,6 @@
 {
-  "status": "placeholder-until-BP2",
-  "note": "Placeholder latency budgets. Replace with owner-agreed targets from the BP2 decision session (D17/D19). Comparison is report-only while status is placeholder-until-BP2.",
+  "status": "adopted-2026-10-01",
+  "note": "Adopted by the owner in the BP2 session (D19). Report-only until the WB-052 campaign measures them on real hardware and real clips; pass --enforce to the harness only after that measurement. Battery has no number until Lane H measures per 50 captures.",
   "transcribe_p95_s_for_1s_audio": 12.0,
   "transcribe_p95_s_for_5s_audio": 15.0,
   "transcribe_p95_s_for_15s_audio": 25.0,

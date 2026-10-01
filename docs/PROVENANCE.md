@@ -6,6 +6,9 @@ release readiness; it records facts, not compliance claims. Licence information 
 from package metadata at the versions listed — always re-verify against the actual
 artifacts you ship.
 
+**Repository licence:** Apache-2.0 (`LICENSE`; owner decision 2026-10-01,
+BP2 decision 8 — patent grant and AI-adjacent mixing clarity over MIT).
+
 **Verified at:** `main` @ `afd1d75`, production venv Python 3.14.7 (Omarchy sleeper),
 2026-09-30. CI runs the same suite on Python 3.12 and Flutter 3.47.5 (pins below).
 
