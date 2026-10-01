@@ -96,7 +96,7 @@ Flutter ecosystem packages; the lock file records the exact sources).
 | `actions/checkout` | `@v4` |
 | `actions/setup-python` | `@v5`, Python 3.12, pip cache |
 | `subosito/flutter-action` | `@v2`, Flutter 3.47.5 stable, cache |
-| Lint | `pip install ruff` — **unpinned** (see gaps) |
+| Lint | `ruff==0.16.9` — pinned to the local-ladder version |
 
 ## Data & consent
 
@@ -104,13 +104,12 @@ No real-voice recordings, personal transcripts or credentials exist in this
 repository. All test fixtures and deployment verification use synthetic audio;
 real-voice evaluation is gated on the owner's consent/retention decisions.
 
-## Known gaps (recorded, not fixed here)
+## Release hygiene (closed 2026-10-01, D5)
 
-1. `ruff` is installed unpinned in CI — lint results can drift between runs.
-   Recommendation: pin before the v0.1.0 tag.
-2. GitHub Actions use major-version tags, not commit-SHA pins.
-3. No committed lock file for the Python transitive closure — `requirements.txt`
-   pins direct deps only. A constraints file generated from the verified venv
-   would make CI/deploy bit-reproducible.
-
-These are inputs to the release checklist, tracked with the release lane.
+1. `ruff` is pinned in CI (`ruff==0.16.9`, the version the local ladder runs).
+2. GitHub Actions are commit-SHA pinned (checkout, setup-python,
+   flutter-action) with the tag kept as a comment.
+3. `requirements.lock` — the full transitive closure of the verified
+   deployment venv — is committed, and CI installs
+   `requirements.txt -c requirements.lock` so resolution is reproducible
+   and drift fails loudly instead of silently.
